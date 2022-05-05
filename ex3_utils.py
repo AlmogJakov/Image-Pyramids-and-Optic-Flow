@@ -179,7 +179,34 @@ def laplaceianReduce(img: np.ndarray, levels: int = 4) -> List[np.ndarray]:
     :param levels: Pyramid depth
     :return: Laplacian Pyramid (list of images)
     """
-    pass
+    pyr = []
+    gaus_pyr = gaussianPyr(img, levels)
+    for level in range(levels - 1):
+        gaus_curr_level = gaus_pyr[level]
+        #height, width = gaus_prev_level.shape[0], gaus_prev_level.shape[1]
+        gaus_prev_level = gaus_pyr[level+1]
+        # height, width = gaus_curr_level.shape[0], gaus_curr_level.shape[1]
+        # gaus_expended_prev_level = np.zeros(gaus_curr_level.shape)
+        # for i in range(0, width, 2):
+        #     for j in range(0, height, 2):
+        #         gaus_expended_prev_level[j, i] = gaus_prev_level[j//2][i//2]
+        # #gaus_expended_prev_level = np.array([[gaus_prev_level[j:j+1, i:i+1] for i in range(0, width)] for j in range(0, height)])
+        # #gaus_expended_prev_level[::2, ::2] = np.array(gaus_prev_level)
+        # gaus_expended_prev_level = blurImage2(gaus_expended_prev_level, 5) * 4
+        gaus_expended_prev_level = gaussExpand(gaus_prev_level, gaus_curr_level.shape)
+        pyr.append(gaus_curr_level - gaus_expended_prev_level)
+    pyr.append(gaus_pyr[-1])
+    return pyr
+
+def gaussExpand(img: np.ndarray, target_shape: np.shape):
+    height, width = img.shape[0]*2, img.shape[1]*2
+    gaus_expended_prev_level = np.zeros(target_shape)
+    for i in range(0, width, 2):
+        for j in range(0, height, 2):
+            gaus_expended_prev_level[j, i] = img[j // 2][i // 2]
+    gaus_expended_prev_level = blurImage2(gaus_expended_prev_level, 5) * 4
+    return gaus_expended_prev_level
+
 
 
 def laplaceianExpand(lap_pyr: List[np.ndarray]) -> np.ndarray:
@@ -188,7 +215,10 @@ def laplaceianExpand(lap_pyr: List[np.ndarray]) -> np.ndarray:
     :param lap_pyr: Laplacian Pyramid
     :return: Original image
     """
-    pass
+    image = lap_pyr[-1]
+    for i in range(len(lap_pyr) - 2, -1, -1):
+        image = lap_pyr[i] + gaussExpand(image, lap_pyr[i].shape)
+    return image
 
 
 def pyrBlend(img_1: np.ndarray, img_2: np.ndarray,
