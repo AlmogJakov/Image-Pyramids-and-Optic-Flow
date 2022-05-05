@@ -14,10 +14,10 @@ def lkDemo(img_path):
     img_1 = cv2.resize(img_1, (0, 0), fx=.5, fy=0.5)
     t = np.array([[1, 0, -.2],
                   [0, 1, -.1],
-                  [0, 0, 1]], dtype=np.float)
+                  [0, 0, 1]], dtype=float)
     img_2 = cv2.warpPerspective(img_1, t, img_1.shape[::-1])
     st = time.time()
-    pts, uv = opticalFlow(img_1.astype(np.float), img_2.astype(np.float), step_size=20, win_size=5)
+    pts, uv = opticalFlow(img_1.astype(float), img_2.astype(float), step_size=20, win_size=5)
     et = time.time()
 
     print("Time: {:.4f}".format(et - st))
@@ -82,9 +82,9 @@ def pyrGaussianDemo(img_path):
     print("Gaussian Pyramid Demo")
 
     img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB) / 255
+    #img = cv2.cvtColor(np.array(img).astype('float32') * 255, cv2.COLOR_RGB2GRAY) / 255
     lvls = 4
     gau_pyr = gaussianPyr(img, lvls)
-
     h, w = gau_pyr[0].shape[:2]
     canv_h = h
     widths = np.cumsum([w // (2 ** i) for i in range(lvls)])
@@ -146,15 +146,15 @@ def main():
     print("ID:", myID())
 
     img_path = 'input/boxMan.jpg'
-    lkDemo(img_path)
-    hierarchicalkDemo(img_path)
-    compareLK(img_path)
-
-    imageWarpingDemo(img_path)
-
+    #lkDemo(img_path)
+    # hierarchicalkDemo(img_path)
+    # compareLK(img_path)
+    #
+    # imageWarpingDemo(img_path)
+    #
     pyrGaussianDemo('input/pyr_bit.jpg')
-    pyrLaplacianDemo('input/pyr_bit.jpg')
-    blendDemo()
+    # pyrLaplacianDemo('input/pyr_bit.jpg')
+    # blendDemo()
 
 
 if __name__ == '__main__':
