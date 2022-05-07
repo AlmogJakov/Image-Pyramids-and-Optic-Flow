@@ -34,7 +34,29 @@ def hierarchicalkDemo(img_path):
     :return:
     """
     print("Hierarchical LK Demo")
+    print("LK Demo")
+    img_path1 = 'input/plane1.jpg'
+    img_path2 = 'input/plane16.jpg'
+    img_1 = cv2.cvtColor(cv2.imread(img_path1), cv2.COLOR_BGR2GRAY)
+    img_2 = cv2.cvtColor(cv2.imread(img_path2), cv2.COLOR_BGR2GRAY)
+    st = time.time()
+    STEP_SIZE, WIN_SIZE = 20, 9
+    pts, uv = opticalFlow(img_1.astype(float), img_2.astype(float), step_size=STEP_SIZE, win_size=WIN_SIZE)
+    ptsi, uvi = iterativeopticalFlow(img_1.astype(float), img_2.astype(float), step_size=STEP_SIZE, win_size=WIN_SIZE)
+    et = time.time()
 
+    print("Time: {:.4f}".format(et - st))
+    print(np.median(uv, 0))
+    print(np.mean(uv, 0))
+
+    f, ax = plt.subplots(1, 2)
+    ax[0].set_title('Optical Flow')
+    ax[1].set_title('Iterative Optical Flow')
+    ax[0].imshow(img_2, cmap='gray')
+    ax[0].quiver(pts[:, 0], pts[:, 1], uv[:, 0], uv[:, 1], color='r')
+    ax[1].imshow(img_2, cmap='gray')
+    ax[1].quiver(ptsi[:, 0], ptsi[:, 1], uvi[:, 0], uvi[:, 1], color='r')
+    plt.show()
     pass
 
 
@@ -147,14 +169,14 @@ def main():
 
     img_path = 'input/boxMan.jpg'
     #lkDemo(img_path)
-    # hierarchicalkDemo(img_path)
+    hierarchicalkDemo(img_path)
     # compareLK(img_path)
     #
     # imageWarpingDemo(img_path)
     #
     #pyrGaussianDemo('input/pyr_bit.jpg')
-    pyrLaplacianDemo('input/pyr_bit.jpg')
-    # blendDemo()
+    #pyrLaplacianDemo('input/pyr_bit.jpg')
+    #blendDemo()
 
 
 if __name__ == '__main__':

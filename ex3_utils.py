@@ -61,11 +61,10 @@ def opticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
             u_v = np.dot(np.linalg.pinv(A), b)
             u_v_list.append(u_v)
     return np.array(y_x_list).reshape(-1, 2), np.array(u_v_list).reshape(-1, 2)
-    pass
 
 
 MIN_LAMDA = 1
-MAX_LAMDA_RATIO = 50
+MAX_LAMDA_RATIO = 25
 
 
 def __acceptable_eigenvalues(A: np.ndarray) -> bool:
@@ -96,6 +95,57 @@ def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int,
     """
     pass
 
+
+def iterativeopticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
+                win_size=5) -> (np.ndarray, np.ndarray):
+    """
+    Given two images, returns the Translation from im1 to im2
+    :param im1: Image 1
+    :param im2: Image 2
+    :param step_size: The image sample size
+    :param win_size: The optical flow window size (odd number)
+    :return: Original points [[x,y]...], [[dU,dV]...] for each points
+    """
+    img1, img2 = im1, im2
+    if len(im1.shape) == 3:
+        img1 = cv2.cvtColor(im1, cv2.COLOR_RGB2GRAY)
+    if len(im2.shape) == 3:
+        img2 = cv2.cvtColor(im2, cv2.COLOR_RGB2GRAY)
+    I_x, I_y = __get_directions(img1)
+    # if we change I_x, I_y to img1 we need to change t_win to subtract img2, img1
+    height, width = img2.shape
+    half_win_size, num_of_win_pixels = win_size // 2, win_size ** 2
+    u_v_list, y_x_list = [], []
+    for i in range(step_size, height, step_size):
+        for j in range(step_size, width, step_size):
+            x_win = I_x[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+            y_win = I_y[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+            A = np.hstack((x_win.reshape(num_of_win_pixels, 1), y_win.reshape(num_of_win_pixels, 1)))
+            if not __acceptable_eigenvalues(A):
+                continue
+            u, v = 0, 0
+            t_win = np.subtract(img1[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+                , img2[i + u - half_win_size: i + u + half_win_size + 1,
+                  j + v - half_win_size: j + v + half_win_size + 1])
+            b = (-1) * t_win.reshape(num_of_win_pixels, 1)
+            while True:
+                [du], [dv] = np.array(np.dot(np.linalg.pinv(A), b)).astype('int')
+                if du != 0 or dv != 0:
+                    u += du
+                    v += dv
+                if i + u <= half_win_size or j + v <= half_win_size or i + u >= height - half_win_size or j + v >= width - half_win_size:
+                    break
+                t_win_temp = np.subtract(img1[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+                    , img2[i + u - half_win_size: i + u + half_win_size + 1, j + v - half_win_size: j + v + half_win_size + 1])
+                if t_win_temp.sum() < t_win.sum():
+                    t_win = t_win_temp
+                else:
+                    break
+                b = (-1) * t_win.reshape(num_of_win_pixels, 1)
+            y_x_list.append((j, i))
+            u_v = np.dot(np.linalg.pinv(A), b)
+            u_v_list.append(u_v)
+    return np.array(y_x_list).reshape(-1, 2), np.array(u_v_list).reshape(-1, 2)
 
 # ---------------------------------------------------------------------------
 # ------------------------ Image Alignment & Warping ------------------------
@@ -183,30 +233,21 @@ def laplaceianReduce(img: np.ndarray, levels: int = 4) -> List[np.ndarray]:
     gaus_pyr = gaussianPyr(img, levels)
     for level in range(levels - 1):
         gaus_curr_level = gaus_pyr[level]
-        #height, width = gaus_prev_level.shape[0], gaus_prev_level.shape[1]
-        gaus_prev_level = gaus_pyr[level+1]
-        # height, width = gaus_curr_level.shape[0], gaus_curr_level.shape[1]
-        # gaus_expended_prev_level = np.zeros(gaus_curr_level.shape)
-        # for i in range(0, width, 2):
-        #     for j in range(0, height, 2):
-        #         gaus_expended_prev_level[j, i] = gaus_prev_level[j//2][i//2]
-        # #gaus_expended_prev_level = np.array([[gaus_prev_level[j:j+1, i:i+1] for i in range(0, width)] for j in range(0, height)])
-        # #gaus_expended_prev_level[::2, ::2] = np.array(gaus_prev_level)
-        # gaus_expended_prev_level = blurImage2(gaus_expended_prev_level, 5) * 4
+        gaus_prev_level = gaus_pyr[level + 1]
         gaus_expended_prev_level = gaussExpand(gaus_prev_level, gaus_curr_level.shape)
         pyr.append(gaus_curr_level - gaus_expended_prev_level)
     pyr.append(gaus_pyr[-1])
     return pyr
 
+
 def gaussExpand(img: np.ndarray, target_shape: np.shape):
-    height, width = img.shape[0]*2, img.shape[1]*2
+    height, width = img.shape[0] * 2, img.shape[1] * 2
     gaus_expended_prev_level = np.zeros(target_shape)
     for i in range(0, width, 2):
         for j in range(0, height, 2):
             gaus_expended_prev_level[j, i] = img[j // 2][i // 2]
-    gaus_expended_prev_level = blurImage2(gaus_expended_prev_level, 5) * 4
+    gaus_expended_prev_level = np.clip(blurImage2(gaus_expended_prev_level, 5) * 4, 0, 1)
     return gaus_expended_prev_level
-
 
 
 def laplaceianExpand(lap_pyr: List[np.ndarray]) -> np.ndarray:
@@ -217,7 +258,7 @@ def laplaceianExpand(lap_pyr: List[np.ndarray]) -> np.ndarray:
     """
     image = lap_pyr[-1]
     for i in range(len(lap_pyr) - 2, -1, -1):
-        image = lap_pyr[i] + gaussExpand(image, lap_pyr[i].shape)
+        image = np.clip(lap_pyr[i] + gaussExpand(image, lap_pyr[i].shape), 0, 1)
     return image
 
 
@@ -231,7 +272,13 @@ def pyrBlend(img_1: np.ndarray, img_2: np.ndarray,
     :param levels: Pyramid depth
     :return: (Naive blend, Blended Image)
     """
-    pass
+    lap_pyr1 = laplaceianReduce(img_1, levels)
+    lap_pyr2 = laplaceianReduce(img_2, levels)
+    gauss_pyr = gaussianPyr(mask, levels)
+    lap_pyr3 = [np.array(gauss_pyr[i] * lap_pyr1[i] + (1 - gauss_pyr[i]) * lap_pyr2[i]) for i in range(levels)]
+    naive = np.array([[(img_2[j][i] if (mask[j][i].any() < 0.5) else img_1[j][i])
+                       for i in range(mask.shape[1])] for j in range(mask.shape[0])])
+    return naive, laplaceianExpand(lap_pyr3)
 
 
 def blurImage2(in_image: np.ndarray, k_size: int) -> np.ndarray:
