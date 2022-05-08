@@ -35,12 +35,12 @@ def hierarchicalkDemo(img_path):
     """
     print("Hierarchical LK Demo")
     print("LK Demo")
-    img_path1 = 'input/plane1.jpg'
-    img_path2 = 'input/plane16.jpg'
+    img_path1 = 'input/sphere1.jpg'
+    img_path2 = 'input/sphere2.jpg'
     img_1 = cv2.cvtColor(cv2.imread(img_path1), cv2.COLOR_BGR2GRAY)
     img_2 = cv2.cvtColor(cv2.imread(img_path2), cv2.COLOR_BGR2GRAY)
     st = time.time()
-    STEP_SIZE, WIN_SIZE = 20, 9
+    STEP_SIZE, WIN_SIZE = 10, 29
     pts, uv = opticalFlow(img_1.astype(float), img_2.astype(float), step_size=STEP_SIZE, win_size=WIN_SIZE)
     ptsi, uvi = iterativeopticalFlow(img_1.astype(float), img_2.astype(float), step_size=STEP_SIZE, win_size=WIN_SIZE)
     et = time.time()
@@ -91,7 +91,18 @@ def imageWarpingDemo(img_path):
     :return:
     """
     print("Image Warping Demo")
-
+    img_path1 = 'input/sphere1.jpg'
+    T = [[1,2,0],[2,1,0],[0,2,1]]
+    img1 = np.array(cv2.imread(img_path1))
+    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
+    img2 = np.array(np.zeros(img1.shape))
+    res = warpImages(img1, img2, T)
+    f, ax = plt.subplots(1, 2)
+    ax[0].set_title('Original Image')
+    ax[1].set_title('Warped Image')
+    ax[0].imshow(img1)
+    ax[1].imshow(res)
+    plt.show()
     pass
 
 
@@ -169,10 +180,10 @@ def main():
 
     img_path = 'input/boxMan.jpg'
     #lkDemo(img_path)
-    hierarchicalkDemo(img_path)
+    #hierarchicalkDemo(img_path)
     # compareLK(img_path)
     #
-    # imageWarpingDemo(img_path)
+    imageWarpingDemo(img_path)
     #
     #pyrGaussianDemo('input/pyr_bit.jpg')
     #pyrLaplacianDemo('input/pyr_bit.jpg')

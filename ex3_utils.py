@@ -28,6 +28,7 @@ Source: https://medium.com/building-autonomous-flight-software/lucas-kanade-opti
 """
 
 
+# https://sandipanweb.wordpress.com/2018/02/25/implementing-lucas-kanade-optical-flow-algorithm-in-python/
 def opticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
                 win_size=5) -> (np.ndarray, np.ndarray):
     """
@@ -45,11 +46,22 @@ def opticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
         img2 = cv2.cvtColor(im2, cv2.COLOR_RGB2GRAY)
     I_x, I_y = __get_directions(img1)
     I_t = np.subtract(img1, img2)
+
+    # kernel_x = np.array([[-1., 1.], [-1., 1.]])
+    # kernel_y = np.array([[-1., -1.], [1., 1.]])
+    # kernel_t = np.array([[1., 1.], [1., 1.]])
+    #
+    # cv2.filter2D(in_image, -1, gaussian_kernel, borderType=cv2.BORDER_REPLICATE)
+    #
+    # I_x = cv2.filter2D(img1, -1, kernel_x, borderType=cv2.BORDER_REPLICATE)
+    # I_y = cv2.filter2D(img1, -1, kernel_y, borderType=cv2.BORDER_REPLICATE)
+    # I_t = cv2.filter2D(img2, -1, kernel_t, borderType=cv2.BORDER_REPLICATE) + cv2.filter2D(img1, -1, -kernel_t, borderType=cv2.BORDER_REPLICATE)
+
     height, width = img2.shape
     half_win_size, num_of_win_pixels = win_size // 2, win_size ** 2
     u_v_list, y_x_list = [], []
-    for i in range(step_size, height, step_size):
-        for j in range(step_size, width, step_size):
+    for i in range(int(max(step_size, win_size) / 2), height - int(max(step_size, win_size) / 2), step_size):
+        for j in range(int(max(step_size, win_size) / 2), width - int(max(step_size, win_size) / 2), step_size):
             x_win = I_x[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
             y_win = I_y[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
             A = np.hstack((x_win.reshape(num_of_win_pixels, 1), y_win.reshape(num_of_win_pixels, 1)))
@@ -97,7 +109,7 @@ def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int,
 
 
 def iterativeopticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
-                win_size=5) -> (np.ndarray, np.ndarray):
+                         win_size=5) -> (np.ndarray, np.ndarray):
     """
     Given two images, returns the Translation from im1 to im2
     :param im1: Image 1
@@ -116,8 +128,8 @@ def iterativeopticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
     height, width = img2.shape
     half_win_size, num_of_win_pixels = win_size // 2, win_size ** 2
     u_v_list, y_x_list = [], []
-    for i in range(step_size, height, step_size):
-        for j in range(step_size, width, step_size):
+    for i in range(int(max(step_size, win_size) / 2), height - int(max(step_size, win_size) / 2), step_size):
+        for j in range(int(max(step_size, win_size) / 2), width - int(max(step_size, win_size) / 2), step_size):
             x_win = I_x[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
             y_win = I_y[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
             A = np.hstack((x_win.reshape(num_of_win_pixels, 1), y_win.reshape(num_of_win_pixels, 1)))
@@ -125,8 +137,8 @@ def iterativeopticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
                 continue
             u, v = 0, 0
             t_win = np.subtract(img1[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
-                , img2[i + u - half_win_size: i + u + half_win_size + 1,
-                  j + v - half_win_size: j + v + half_win_size + 1])
+                                , img2[i + u - half_win_size: i + u + half_win_size + 1,
+                                  j + v - half_win_size: j + v + half_win_size + 1])
             b = (-1) * t_win.reshape(num_of_win_pixels, 1)
             while True:
                 [du], [dv] = np.array(np.dot(np.linalg.pinv(A), b)).astype('int')
@@ -135,8 +147,10 @@ def iterativeopticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
                     v += dv
                 if i + u <= half_win_size or j + v <= half_win_size or i + u >= height - half_win_size or j + v >= width - half_win_size:
                     break
-                t_win_temp = np.subtract(img1[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
-                    , img2[i + u - half_win_size: i + u + half_win_size + 1, j + v - half_win_size: j + v + half_win_size + 1])
+                t_win_temp = np.subtract(
+                    img1[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+                    , img2[i + u - half_win_size: i + u + half_win_size + 1,
+                      j + v - half_win_size: j + v + half_win_size + 1])
                 if t_win_temp.sum() < t_win.sum():
                     t_win = t_win_temp
                 else:
@@ -146,6 +160,7 @@ def iterativeopticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
             u_v = np.dot(np.linalg.pinv(A), b)
             u_v_list.append(u_v)
     return np.array(y_x_list).reshape(-1, 2), np.array(u_v_list).reshape(-1, 2)
+
 
 # ---------------------------------------------------------------------------
 # ------------------------ Image Alignment & Warping ------------------------
@@ -188,6 +203,8 @@ def findRigidCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     pass
 
 
+# TODO: Inverse?
+# https://github.com/ZhihaoZhu/Image-Warping
 def warpImages(im1: np.ndarray, im2: np.ndarray, T: np.ndarray) -> np.ndarray:
     """
     :param im1: input image 1 in grayscale format.
@@ -197,7 +214,13 @@ def warpImages(im1: np.ndarray, im2: np.ndarray, T: np.ndarray) -> np.ndarray:
     :return: warp image 2 according to T and display both image1
     and the wrapped version of the image2 in the same figure.
     """
-    pass
+    for i in range(1, im1.shape[0]):
+        for j in range(1, im1.shape[1]):
+            new_coordinates = np.linalg.inv(T).dot(np.array([i, j, 1]))
+            new_i, new_j = int(new_coordinates[0]), int(new_coordinates[1])
+            if 0 <= new_i < im2.shape[0] and 0 <= new_j < im2.shape[1]:
+                im2[i, j] = im1[new_i, new_j]
+    return im2.astype(im1.dtype)
 
 
 # ---------------------------------------------------------------------------
