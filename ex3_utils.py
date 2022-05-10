@@ -46,17 +46,6 @@ def opticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
         img2 = cv2.cvtColor(im2, cv2.COLOR_RGB2GRAY)
     I_x, I_y = __get_directions(img1)
     I_t = np.subtract(img1, img2)
-
-    # kernel_x = np.array([[-1., 1.], [-1., 1.]])
-    # kernel_y = np.array([[-1., -1.], [1., 1.]])
-    # kernel_t = np.array([[1., 1.], [1., 1.]])
-    #
-    # cv2.filter2D(in_image, -1, gaussian_kernel, borderType=cv2.BORDER_REPLICATE)
-    #
-    # I_x = cv2.filter2D(img1, -1, kernel_x, borderType=cv2.BORDER_REPLICATE)
-    # I_y = cv2.filter2D(img1, -1, kernel_y, borderType=cv2.BORDER_REPLICATE)
-    # I_t = cv2.filter2D(img2, -1, kernel_t, borderType=cv2.BORDER_REPLICATE) + cv2.filter2D(img1, -1, -kernel_t, borderType=cv2.BORDER_REPLICATE)
-
     height, width = img2.shape
     half_win_size, num_of_win_pixels = win_size // 2, win_size ** 2
     u_v_list, y_x_list = [], []
@@ -94,8 +83,7 @@ def __get_directions(img: np.ndarray):
     return X, Y
 
 
-def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int,
-                     stepSize: int, winSize: int) -> np.ndarray:
+def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int, stepSize: int, winSize: int) -> np.ndarray:
     """
     :param img1: First image
     :param img2: Second image
@@ -105,61 +93,75 @@ def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int,
     :return: A 3d array, with a shape of (m, n, 2),
     where the first channel holds U, and the second V.
     """
-    pass
+    gaus_pyr1 = gaussianPyr(img1, k)
+    gaus_pyr2 = gaussianPyr(img2, k)
+    plt.imshow(gaus_pyr1[0], cmap='gray')
+    plt.show()
+    y_x = np.zeros((0, 0))
+    u_v = np.zeros((0, 0))
+    # total_u_v = np.zeros((img1.shape[0], img1.shape[1]))
+    half_win_size, num_of_win_pixels = winSize // 2, winSize ** 2
+    for i in range(k - 1, -1, -1):
+        for j in range(len(u_v)):
+            prev_y, prev_x, new_y, new_x = int(y_x[j][0]), int(y_x[j][1]), int(y_x[j][0] + u_v[j][0]), int(
+                y_x[j][1] + u_v[j][1])
+            gaus_pyr1[i][new_x - half_win_size:new_x + half_win_size + 1,
+            new_y - half_win_size:new_y + half_win_size + 1] \
+                = gaus_pyr1[i][prev_x - half_win_size:prev_x + half_win_size + 1,
+                  prev_y - half_win_size:prev_y + half_win_size + 1]
+            # total_u_v[new_x-half_win_size:new_x+half_win_size+1, new_y-half_win_size:new_y+half_win_size+1] += u_v[j]
+        y_x, u_v = np.array(opticalFlow(gaus_pyr1[i], gaus_pyr2[i], step_size=stepSize, win_size=winSize)) * 2
+        plt.imshow(gaus_pyr1[i], cmap='gray')
+        plt.show()
+    plt.imshow(gaus_pyr1[0], cmap='gray')
+    plt.show()
+    return gaus_pyr1[0]
 
 
-def iterativeopticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
-                         win_size=5) -> (np.ndarray, np.ndarray):
-    """
-    Given two images, returns the Translation from im1 to im2
-    :param im1: Image 1
-    :param im2: Image 2
-    :param step_size: The image sample size
-    :param win_size: The optical flow window size (odd number)
-    :return: Original points [[x,y]...], [[dU,dV]...] for each points
-    """
-    img1, img2 = im1, im2
-    if len(im1.shape) == 3:
-        img1 = cv2.cvtColor(im1, cv2.COLOR_RGB2GRAY)
-    if len(im2.shape) == 3:
-        img2 = cv2.cvtColor(im2, cv2.COLOR_RGB2GRAY)
-    I_x, I_y = __get_directions(img1)
-    # if we change I_x, I_y to img1 we need to change t_win to subtract img2, img1
-    height, width = img2.shape
-    half_win_size, num_of_win_pixels = win_size // 2, win_size ** 2
-    u_v_list, y_x_list = [], []
-    for i in range(int(max(step_size, win_size) / 2), height - int(max(step_size, win_size) / 2), step_size):
-        for j in range(int(max(step_size, win_size) / 2), width - int(max(step_size, win_size) / 2), step_size):
-            x_win = I_x[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
-            y_win = I_y[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
-            A = np.hstack((x_win.reshape(num_of_win_pixels, 1), y_win.reshape(num_of_win_pixels, 1)))
-            if not __acceptable_eigenvalues(A):
-                continue
-            u, v = 0, 0
-            t_win = np.subtract(img1[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
-                                , img2[i + u - half_win_size: i + u + half_win_size + 1,
-                                  j + v - half_win_size: j + v + half_win_size + 1])
-            b = (-1) * t_win.reshape(num_of_win_pixels, 1)
-            while True:
-                [du], [dv] = np.array(np.dot(np.linalg.pinv(A), b)).astype('int')
-                if du != 0 or dv != 0:
-                    u += du
-                    v += dv
-                if i + u <= half_win_size or j + v <= half_win_size or i + u >= height - half_win_size or j + v >= width - half_win_size:
-                    break
-                t_win_temp = np.subtract(
-                    img1[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
-                    , img2[i + u - half_win_size: i + u + half_win_size + 1,
-                      j + v - half_win_size: j + v + half_win_size + 1])
-                if t_win_temp.sum() < t_win.sum():
-                    t_win = t_win_temp
-                else:
-                    break
-                b = (-1) * t_win.reshape(num_of_win_pixels, 1)
-            y_x_list.append((j, i))
-            u_v = np.dot(np.linalg.pinv(A), b)
-            u_v_list.append(u_v)
-    return np.array(y_x_list).reshape(-1, 2), np.array(u_v_list).reshape(-1, 2)
+# def iterativeopticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
+#                          win_size=5) -> (np.ndarray, np.ndarray):
+#     img1, img2 = im1, im2
+#     if len(im1.shape) == 3:
+#         img1 = cv2.cvtColor(im1, cv2.COLOR_RGB2GRAY)
+#     if len(im2.shape) == 3:
+#         img2 = cv2.cvtColor(im2, cv2.COLOR_RGB2GRAY)
+#     I_x, I_y = __get_directions(img1)
+#     # if we change I_x, I_y to img1 we need to change t_win to subtract img2, img1
+#     height, width = img2.shape
+#     half_win_size, num_of_win_pixels = win_size // 2, win_size ** 2
+#     u_v_list, y_x_list = [], []
+#     for i in range(int(max(step_size, win_size) / 2), height - int(max(step_size, win_size) / 2), step_size):
+#         for j in range(int(max(step_size, win_size) / 2), width - int(max(step_size, win_size) / 2), step_size):
+#             x_win = I_x[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+#             y_win = I_y[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+#             A = np.hstack((x_win.reshape(num_of_win_pixels, 1), y_win.reshape(num_of_win_pixels, 1)))
+#             if not __acceptable_eigenvalues(A):
+#                 continue
+#             u, v = 0, 0
+#             t_win = np.subtract(img1[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+#                                 , img2[i + u - half_win_size: i + u + half_win_size + 1,
+#                                   j + v - half_win_size: j + v + half_win_size + 1])
+#             b = (-1) * t_win.reshape(num_of_win_pixels, 1)
+#             while True:
+#                 [du], [dv] = np.array(np.dot(np.linalg.pinv(A), b)).astype('int')
+#                 if du != 0 or dv != 0:
+#                     u += du
+#                     v += dv
+#                 if i + u <= half_win_size or j + v <= half_win_size or i + u >= height - half_win_size or j + v >= width - half_win_size:
+#                     break
+#                 t_win_temp = np.subtract(
+#                     img1[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+#                     , img2[i + u - half_win_size: i + u + half_win_size + 1,
+#                       j + v - half_win_size: j + v + half_win_size + 1])
+#                 if t_win_temp.sum() < t_win.sum():
+#                     t_win = t_win_temp
+#                 else:
+#                     break
+#                 b = (-1) * t_win.reshape(num_of_win_pixels, 1)
+#             y_x_list.append((j, i))
+#             u_v = np.dot(np.linalg.pinv(A), b)
+#             u_v_list.append(u_v)
+#     return np.array(y_x_list).reshape(-1, 2), np.array(u_v_list).reshape(-1, 2)
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +175,30 @@ def findTranslationLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     :param im2: image 1 after Translation.
     :return: Translation matrix by LK.
     """
+    img1 = im1
+    img2 = im2
+    k = 6
+    gaus_pyr1 = gaussianPyr(img1, k)
+    gaus_pyr2 = gaussianPyr(img2, k)
+    u, v = 0, 0
+    warping_mat = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    for i in range(k - 1, -1, -1):
+        print(warping_mat)
+        plt.imshow(gaus_pyr1[i], cmap='gray')
+        plt.show()
+        gaus_pyr1[i] = warpImages(gaus_pyr1[i], np.zeros(gaus_pyr1[i].shape), warping_mat)
+        plt.imshow(gaus_pyr1[i], cmap='gray')
+        plt.show()
+        img_size = min(gaus_pyr1[i].shape[0], gaus_pyr1[i].shape[1]) - 1
+        y_x, u_v = np.array(opticalFlow(gaus_pyr1[i], gaus_pyr2[i], step_size=img_size, win_size=img_size))
+        if len(u_v) != 0:
+            u = 2 * u_v[0][0]
+            v = 2 * u_v[0][1]
+            warping_mat = np.array([[1, 0, u], [0, 1, v], [0, 0, 1]])
+        else:
+            u, v = 2 * u, 2 * v
+            warping_mat = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    print("u = " + str(u) + ", v = " + str(v))
     pass
 
 
@@ -214,8 +240,8 @@ def warpImages(im1: np.ndarray, im2: np.ndarray, T: np.ndarray) -> np.ndarray:
     :return: warp image 2 according to T and display both image1
     and the wrapped version of the image2 in the same figure.
     """
-    for i in range(1, im1.shape[0]):
-        for j in range(1, im1.shape[1]):
+    for i in range(0, im1.shape[0]):
+        for j in range(0, im1.shape[1]):
             new_coordinates = np.linalg.inv(T).dot(np.array([i, j, 1]))
             new_i, new_j = int(new_coordinates[0]), int(new_coordinates[1])
             if 0 <= new_i < im2.shape[0] and 0 <= new_j < im2.shape[1]:
