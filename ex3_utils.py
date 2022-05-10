@@ -251,11 +251,16 @@ def findRigidCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     max = 0
     res_theta = -1
     max_corr = np.zeros(im1.shape)
+    max_temp = np.zeros(im1.shape)
     for i in range(0, int(2.0 * np.pi * 10), 5):
         theta = float(i) / 10.0
         print(theta)
-        rotat_mat = np.array([[np.cos(theta), -np.sin(theta), 0], [np.sin(theta), np.cos(theta), 0], [0, 0, 1]])
-        temp = warpImages(im1_gray, np.zeros(im1_gray.shape), rotat_mat)
+        rotat_mat = np.array([[np.cos(theta), -np.sin(theta), 0],
+                              [np.sin(theta), np.cos(theta), 0],
+                              [0, 0, 1]])
+        temp = warpImages(im1, np.zeros(im1.shape), rotat_mat)
+        im1_gray = temp - np.mean(temp)
+        im2_gray = im2 - np.mean(im2)
         pad = np.max(temp.shape) // 2
         fft1 = np.fft.fft2(np.pad(temp, pad))
         fft2 = np.fft.fft2(np.pad(im2_gray, pad))
@@ -266,8 +271,26 @@ def findRigidCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
             max = np.max(corr)
             max_corr = corr
             res_theta = theta
-    # plt.imshow(corr, cmap='gray')
-    # plt.show()
+            max_temp = temp
+    print(res_theta)
+    plt.imshow(max_temp, cmap='gray')
+    plt.show()
+
+
+    #inv_theta = int(2.0 * np.pi - theta)
+    #rotat_mat = np.array([[np.cos(inv_theta), -np.sin(inv_theta), 0], [np.sin(inv_theta), np.cos(inv_theta), 0], [0, 0, 1]])
+    #temp = warpImages(im2, np.zeros(im2.shape), rotat_mat)
+    pad = np.max(max_temp.shape) // 2
+    fft1 = np.fft.fft2(np.pad(max_temp, pad))
+    fft2 = np.fft.fft2(np.pad(im2_gray, pad))
+    prod = fft1 * fft2.conj()
+    result_full = np.fft.fftshift(np.fft.ifft2(prod))
+    corr = result_full.real[1 + pad:-pad + 1, 1 + pad:-pad + 1]
+    plt.imshow(corr, cmap='gray')
+    plt.show()
+
+
+
     y, x = np.unravel_index(np.argmax(corr), corr.shape)
     y_distance = im1_gray.shape[0] // 2 - y
     x_distance = im1_gray.shape[1] // 2 - x
@@ -291,7 +314,7 @@ def warpImages(im1: np.ndarray, im2: np.ndarray, T: np.ndarray) -> np.ndarray:
     for i in range(0, im2.shape[0]):
         for j in range(0, im2.shape[1]):
             # new_coordinates = np.linalg.inv(T).dot(np.array([i, j, 1]))
-            new_coordinates = np.linalg.inv(T).dot(np.array([j, i, 1]).T)
+            new_coordinates = np.linalg.inv(T).dot(np.array([j, i, 1]))
             new_j, new_i = int(new_coordinates[0]), int(new_coordinates[1])
             #print("i:"+str(i)+",j:"+str(j)+" new_i:"+str(new_i)+",new_j:"+str(new_j))
             if 0 <= new_i < im1.shape[0] and 0 <= new_j < im1.shape[1]:

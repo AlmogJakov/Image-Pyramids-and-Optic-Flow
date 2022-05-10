@@ -35,19 +35,19 @@ if __name__ == '__main__':
     # print(findTranslationCorr(img_1, trans_img))
 
     ############################ findRigidCorr TEST ############################
-    theta = 1.0
-    rotat_mat = np.array([[np.cos(theta), -np.sin(theta), 0],
-                          [np.sin(theta),  np.cos(theta), 0],
+    theta = 0.5
+    rotat_mat = np.array([[np.cos(theta), -np.sin(theta), -5],
+                          [np.sin(theta),  np.cos(theta), 15],
                           [0,              0,             1]])
     rotat_img = warpImages(img_1, np.zeros((img_1.shape[0], img_1.shape[1])), rotat_mat)
     plt.imshow(rotat_img, cmap='gray')
     plt.show()
-    print(findTranslationCorr(img_1, rotat_img))
+    print(findRigidCorr(img_1, rotat_img))
 
     ############################ OpenCV Warp ############################
-    img = cv2.imread(img_path1, 0)
-    rows, cols = img.shape
-    M = np.float32([[1, 0, 10], [0, 1, 50]])
-    dst = cv2.warpAffine(img, M, (cols,rows))
-    plt.imshow(dst, cmap='gray')
-    plt.show()
+    # img = cv2.imread(img_path1, 0)
+    # rows, cols = img.shape
+    # M = np.float32([[1, 0, 10], [0, 1, 50]])
+    # dst = cv2.warpAffine(img, M, (cols,rows))
+    # plt.imshow(dst, cmap='gray')
+    # plt.show()
