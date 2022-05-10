@@ -21,8 +21,8 @@ def lkDemo(img_path):
     et = time.time()
 
     print("Time: {:.4f}".format(et - st))
-    print(np.median(uv,0))
-    print(np.mean(uv,0))
+    print(np.median(uv, 0))
+    print(np.mean(uv, 0))
 
     displayOpticalFlow(img_2, pts, uv)
 
@@ -89,6 +89,30 @@ def displayOpticalFlow(img: np.ndarray, pts: np.ndarray, uvs: np.ndarray):
 # ------------------------ Image Alignment & Warping ------------------------
 # ---------------------------------------------------------------------------
 
+def findTranslationCorrDemo():
+    img_path = 'input/Dense_Motion_A.jpg'
+    img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
+    trans_mat = np.array([[1, 0, 10],
+                          [0, 1, 50],
+                          [0, 0, 1]])
+    trans_img = warpImages(img, np.zeros(img.shape), trans_mat)
+    plt.imshow(trans_img, cmap='gray')
+    plt.show()
+    print(findTranslationCorr(img, trans_img))
+
+
+def findRigidCorrDemo():
+    img_path = 'input/Dense_Motion_A.jpg'
+    img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
+    theta = 0.5
+    rotat_mat = np.array([[np.cos(theta), -np.sin(theta), -5],
+                          [np.sin(theta), np.cos(theta), 15],
+                          [0, 0, 1]])
+    rotat_img = warpImages(img, np.zeros((img.shape[0], img.shape[1])), rotat_mat)
+    plt.imshow(rotat_img, cmap='gray')
+    plt.show()
+    print(findRigidCorr(img, rotat_img))
+
 
 def imageWarpingDemo(img_path):
     """
@@ -98,7 +122,7 @@ def imageWarpingDemo(img_path):
     """
     print("Image Warping Demo")
     img_path1 = 'input/sphere1.jpg'
-    T = [[1,2,0],[2,1,0],[0,2,1]]
+    T = [[1, 2, 0], [2, 1, 0], [0, 2, 1]]
     img1 = np.array(cv2.imread(img_path1))
     img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
     img2 = np.array(np.zeros(img1.shape))
@@ -109,6 +133,13 @@ def imageWarpingDemo(img_path):
     ax[0].imshow(img1)
     ax[1].imshow(res)
     plt.show()
+    ############################ OpenCV Warp ############################
+    # img = cv2.imread(img_path1, 0)
+    # rows, cols = img.shape
+    # M = np.float32([[1, 0, 10], [0, 1, 50]])
+    # dst = cv2.warpAffine(img, M, (cols,rows))
+    # plt.imshow(dst, cmap='gray')
+    # plt.show()
     pass
 
 
@@ -121,7 +152,7 @@ def pyrGaussianDemo(img_path):
     print("Gaussian Pyramid Demo")
 
     img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB) / 255
-    #img = cv2.cvtColor(np.array(img).astype('float32') * 255, cv2.COLOR_RGB2GRAY) / 255
+    # img = cv2.cvtColor(np.array(img).astype('float32') * 255, cv2.COLOR_RGB2GRAY) / 255
     lvls = 4
     gau_pyr = gaussianPyr(img, lvls)
     h, w = gau_pyr[0].shape[:2]
@@ -185,15 +216,16 @@ def main():
     print("ID:", myID())
 
     img_path = 'input/boxMan.jpg'
-    #lkDemo(img_path)
-    #hierarchicalkDemo(img_path)
-    #compareLK(img_path)
-    #
+    # lkDemo(img_path)
+    # hierarchicalkDemo(img_path)
+    # compareLK(img_path)
+    # findTranslationCorrDemo()
+    findRigidCorrDemo()
     # imageWarpingDemo(img_path)
     #
-    #pyrGaussianDemo('input/pyr_bit.jpg')
-    #pyrLaplacianDemo('input/pyr_bit.jpg')
-    #blendDemo()
+    # pyrGaussianDemo('input/pyr_bit.jpg')
+    # pyrLaplacianDemo('input/pyr_bit.jpg')
+    # blendDemo()
 
 
 if __name__ == '__main__':

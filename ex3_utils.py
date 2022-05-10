@@ -276,7 +276,6 @@ def findRigidCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     plt.imshow(max_temp, cmap='gray')
     plt.show()
 
-
     #inv_theta = int(2.0 * np.pi - theta)
     #rotat_mat = np.array([[np.cos(inv_theta), -np.sin(inv_theta), 0], [np.sin(inv_theta), np.cos(inv_theta), 0], [0, 0, 1]])
     #temp = warpImages(im2, np.zeros(im2.shape), rotat_mat)
@@ -288,9 +287,7 @@ def findRigidCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     corr = result_full.real[1 + pad:-pad + 1, 1 + pad:-pad + 1]
     plt.imshow(corr, cmap='gray')
     plt.show()
-
-
-
+    
     y, x = np.unravel_index(np.argmax(corr), corr.shape)
     y_distance = im1_gray.shape[0] // 2 - y
     x_distance = im1_gray.shape[1] // 2 - x
