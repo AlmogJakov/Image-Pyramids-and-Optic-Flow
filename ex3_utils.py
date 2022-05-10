@@ -211,21 +211,56 @@ def findRigidLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     pass
 
 
+# https://stackoverflow.com/questions/58174390/how-to-detect-image-translation-with-only-numpy-and-pil
 def findTranslationCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     """
     :param im1: input image 1 in grayscale format.
     :param im2: image 1 after Translation.
     :return: Translation matrix by correlation.
     """
-    pass
+    # get rid of the averages, otherwise the results are not good
+    im1_gray = im1 - np.mean(im1)
+    im2_gray = im2 - np.mean(im2)
+    # calculate the correlation image (without scipy)
+    pad = np.max(im1_gray.shape) // 2
+    fft1 = np.fft.fft2(np.pad(im1_gray, pad))
+    fft2 = np.fft.fft2(np.pad(im2_gray, pad))
+    prod = fft1 * fft2.conj()
+    result_full = np.fft.fftshift(np.fft.ifft2(prod))
+    corr = result_full.real[1 + pad:-pad + 1, 1 + pad:-pad + 1]
+    plt.imshow(corr, cmap='gray')
+    plt.show()
+    y, x = np.unravel_index(np.argmax(corr), corr.shape)
+    y_distance = im1_gray.shape[0] // 2 - y
+    x_distance = im1_gray.shape[1] // 2 - x
+    warping_mat = np.array([[1, 0, y_distance], [0, 1, x_distance], [0, 0, 1]])
+    return warping_mat
 
 
+# https://stackoverflow.com/questions/23619269/calculating-translation-value-and-rotation-angle-of-a-rotated-2d-image
 def findRigidCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     """
     :param im1: input image 1 in grayscale format.
     :param im2: image 1 after Rigid.
     :return: Rigid matrix by correlation.
     """
+    l = len(im1)
+    B = np.vstack([np.transpose(im1), np.ones(l)])
+    print(B)
+    D = 1.0 / np.linalg.det(B)
+    entry = lambda r, d: np.linalg.det(np.delete(np.vstack([r, B]), (d + 1), axis=0))
+    M = [[(-1) ** i * D * entry(R, i) for i in range(l)] for R in np.transpose(out)]
+    A, t = np.hsplit(np.array(M), [l - 1])
+    t = np.transpose(t)[0]
+    # output
+    print("Affine transformation matrix:\n", A)
+    print("Affine transformation translation vector:\n", t)
+    # unittests
+    print("TESTING:")
+    for p, P in zip(np.array(im1), np.array(im2)):
+        image_p = np.dot(A, p) + t
+        result = "[OK]" if np.allclose(image_p, P) else "[ERROR]"
+        print(p, " mapped to: ", image_p, " ; expected: ", P, result)
     pass
 
 

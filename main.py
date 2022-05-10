@@ -24,8 +24,10 @@ if __name__ == '__main__':
     img_path1 = 'input/Dense_Motion_A.jpg'
     img_path2 = 'input/Dense_Motion_B.jpg'
     img_1 = cv2.cvtColor(cv2.imread(img_path1), cv2.COLOR_BGR2GRAY)
-    warping_mat = np.array([[1, 0, -15], [0, 1, 15], [0, 0, 1]])
+    warping_mat = np.array([[1, 0, -15], [0, 1, 30], [0, 0, 1]])
     img_2 = warpImages(img_1, np.zeros(img_1.shape), warping_mat)
     plt.imshow(img_2, cmap='gray')
     plt.show()
-    res = findTranslationLK(img_1, img_2)
+    #res = findTranslationLK(img_1, img_2)
+    #findRigidCorr(img_1, img_2)
+    print(findTranslationCorr(img_1, img_2))
