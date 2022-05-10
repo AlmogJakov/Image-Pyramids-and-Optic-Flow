@@ -44,12 +44,10 @@ if __name__ == '__main__':
     plt.show()
     print(findTranslationCorr(img_1, rotat_img))
 
+    ############################ OpenCV Warp ############################
     img = cv2.imread(img_path1, 0)
     rows, cols = img.shape
     M = np.float32([[1, 0, 10], [0, 1, 50]])
     dst = cv2.warpAffine(img, M, (cols,rows))
     plt.imshow(dst, cmap='gray')
     plt.show()
-    #res = findTranslationLK(img_1, img_2)
-    #findRigidCorr(img_1, rotat_img)
-    #print(findTranslationCorr(img_1, trans_img))
