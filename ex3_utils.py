@@ -218,21 +218,9 @@ def findTranslationCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     :param im2: image 1 after Translation.
     :return: Translation matrix by correlation.
     """
-    # get rid of the averages, otherwise the results are not good
-    im1_gray = im1 - np.mean(im1)
-    im2_gray = im2 - np.mean(im2)
-    # calculate the correlation image (without scipy)
-    pad = np.max(im1_gray.shape) // 2
-    fft1 = np.fft.fft2(np.pad(im1_gray, pad))
-    fft2 = np.fft.fft2(np.pad(im2_gray, pad))
-    prod = fft1 * fft2.conj()
-    result_full = np.fft.fftshift(np.fft.ifft2(prod))
-    corr = result_full.real[1 + pad:-pad + 1, 1 + pad:-pad + 1]
-    plt.imshow(corr, cmap='gray')
-    plt.show()
-    y, x = np.unravel_index(np.argmax(corr), corr.shape)
-    y_distance = im1_gray.shape[0] // 2 - y
-    x_distance = im1_gray.shape[1] // 2 - x
+    y, x, max_point_value = maxCorrelationPoint(im1, im2)
+    y_distance = im1.shape[0] // 2 - y
+    x_distance = im1.shape[1] // 2 - x
     warping_mat = np.array([[1, 0, x_distance], [0, 1, y_distance], [0, 0, 1]])
     return warping_mat
 
@@ -244,55 +232,22 @@ def findRigidCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     :param im2: image 1 after Rigid.
     :return: Rigid matrix by correlation.
     """
-    # get rid of the averages, otherwise the results are not good
-    im1_gray = im1 - np.mean(im1)
-    im2_gray = im2 - np.mean(im2)
-    # calculate the correlation image (without scipy)
-    max = 0
+    res_y, res_x, res_max = -1, -1, -1
     res_theta = -1
-    max_corr = np.zeros(im1.shape)
-    max_temp = np.zeros(im1.shape)
     for i in range(0, int(2.0 * np.pi * 10), 5):
         theta = float(i) / 10.0
-        print(theta)
         rotat_mat = np.array([[np.cos(theta), -np.sin(theta), 0],
                               [np.sin(theta), np.cos(theta), 0],
                               [0, 0, 1]])
-        temp = warpImages(im1, np.zeros(im1.shape), rotat_mat)
-        im1_gray = temp - np.mean(temp)
-        im2_gray = im2 - np.mean(im2)
-        pad = np.max(temp.shape) // 2
-        fft1 = np.fft.fft2(np.pad(temp, pad))
-        fft2 = np.fft.fft2(np.pad(im2_gray, pad))
-        prod = fft1 * fft2.conj()
-        result_full = np.fft.fftshift(np.fft.ifft2(prod))
-        corr = result_full.real[1 + pad:-pad + 1, 1 + pad:-pad + 1]
-        if np.max(corr) > max:
-            max = np.max(corr)
-            max_corr = corr
+        rotated_im1 = warpImages(im1, np.zeros(im1.shape), rotat_mat)
+        y, x, max_point_value = maxCorrelationPoint(rotated_im1, im2)
+        if max_point_value > res_max:
+            res_y, res_x, res_max = y, x, max_point_value
             res_theta = theta
-            max_temp = temp
-    print(res_theta)
-    plt.imshow(max_temp, cmap='gray')
-    plt.show()
-
-    #inv_theta = int(2.0 * np.pi - theta)
-    #rotat_mat = np.array([[np.cos(inv_theta), -np.sin(inv_theta), 0], [np.sin(inv_theta), np.cos(inv_theta), 0], [0, 0, 1]])
-    #temp = warpImages(im2, np.zeros(im2.shape), rotat_mat)
-    pad = np.max(max_temp.shape) // 2
-    fft1 = np.fft.fft2(np.pad(max_temp, pad))
-    fft2 = np.fft.fft2(np.pad(im2_gray, pad))
-    prod = fft1 * fft2.conj()
-    result_full = np.fft.fftshift(np.fft.ifft2(prod))
-    corr = result_full.real[1 + pad:-pad + 1, 1 + pad:-pad + 1]
-    plt.imshow(corr, cmap='gray')
-    plt.show()
-    
-    y, x = np.unravel_index(np.argmax(corr), corr.shape)
-    y_distance = im1_gray.shape[0] // 2 - y
-    x_distance = im1_gray.shape[1] // 2 - x
-    warping_mat = np.array([[np.cos(theta), -np.sin(theta), x_distance],
-                            [np.sin(theta),  np.cos(theta), y_distance],
+    y_distance = im1.shape[0] // 2 - res_y
+    x_distance = im1.shape[1] // 2 - res_x
+    warping_mat = np.array([[np.cos(res_theta), -np.sin(res_theta), x_distance],
+                            [np.sin(res_theta), np.cos(res_theta), y_distance],
                             [0, 0, 1]])
     return warping_mat
 
@@ -313,10 +268,26 @@ def warpImages(im1: np.ndarray, im2: np.ndarray, T: np.ndarray) -> np.ndarray:
             # new_coordinates = np.linalg.inv(T).dot(np.array([i, j, 1]))
             new_coordinates = np.linalg.inv(T).dot(np.array([j, i, 1]))
             new_j, new_i = int(new_coordinates[0]), int(new_coordinates[1])
-            #print("i:"+str(i)+",j:"+str(j)+" new_i:"+str(new_i)+",new_j:"+str(new_j))
+            # print("i:"+str(i)+",j:"+str(j)+" new_i:"+str(new_i)+",new_j:"+str(new_j))
             if 0 <= new_i < im1.shape[0] and 0 <= new_j < im1.shape[1]:
                 im2[i, j] = im1[new_i, new_j]
     return im2.astype(im1.dtype)
+
+
+def maxCorrelationPoint(im1: np.ndarray, im2: np.ndarray):
+    # get rid of the averages, otherwise the results are not good
+    im1_gray = im1 - np.mean(im1)
+    im2_gray = im2 - np.mean(im2)
+    # calculate the correlation image (without scipy)
+    pad = np.max(im1_gray.shape) // 2
+    fft1 = np.fft.fft2(np.pad(im1_gray, pad))
+    fft2 = np.fft.fft2(np.pad(im2_gray, pad))
+    prod = fft1 * fft2.conj()
+    result_full = np.fft.fftshift(np.fft.ifft2(prod))
+    corr = result_full.real[1 + pad:-pad + 1, 1 + pad:-pad + 1]
+    max_point_value = np.argmax(corr)
+    y, x = np.unravel_index(max_point_value, corr.shape)
+    return y, x, np.max(corr)
 
 
 # ---------------------------------------------------------------------------
