@@ -35,14 +35,20 @@ if __name__ == '__main__':
     # print(findTranslationCorr(img_1, trans_img))
 
     ############################ findRigidCorr TEST ############################
-    theta = 0.5
-    rotat_mat = np.array([[np.cos(theta), -np.sin(theta), -5],
-                          [np.sin(theta),  np.cos(theta), 15],
-                          [0,              0,             1]])
-    rotat_img = warpImages(img_1, np.zeros((img_1.shape[0], img_1.shape[1])), rotat_mat)
-    plt.imshow(rotat_img, cmap='gray')
-    plt.show()
-    print(findRigidCorr(img_1, rotat_img))
+    # theta = 0.5
+    # rotat_mat = np.array([[np.cos(theta), -np.sin(theta), -5],
+    #                       [np.sin(theta),  np.cos(theta), 15],
+    #                       [0,              0,             1]])
+    # rotat_img = warpImages(img_1, np.zeros((img_1.shape[0], img_1.shape[1])), rotat_mat)
+    # plt.imshow(rotat_img, cmap='gray')
+    # plt.show()
+    # print(findRigidCorr(img_1, rotat_img))
+
+
+
+    # (sx, sy), sf = cv2.phaseCorrelate(img_1, rotat_img)
+    # rotation = -sy / img_1.shape[0] * 360
+    # print(rotation)
 
     ############################ OpenCV Warp ############################
     # img = cv2.imread(img_path1, 0)
@@ -51,3 +57,10 @@ if __name__ == '__main__':
     # dst = cv2.warpAffine(img, M, (cols,rows))
     # plt.imshow(dst, cmap='gray')
     # plt.show()
+
+    # https://stackoverflow.com/questions/34884779/whats-a-simple-way-of-warping-an-image-with-a-given-set-of-points
+    #image = warp(img_1, [(210,296,100,0), (101,97,-30,-10), (77,473,50,-100)])
+    image = warp(img_1, [(210, 296), (101, 97), (77, 473)], [(100,0), (-30,-10), (50,-100)])
+
+
+

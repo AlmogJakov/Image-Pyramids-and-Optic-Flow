@@ -44,8 +44,14 @@ def opticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
         img1 = cv2.cvtColor(im1, cv2.COLOR_RGB2GRAY)
     if len(im2.shape) == 3:
         img2 = cv2.cvtColor(im2, cv2.COLOR_RGB2GRAY)
-    I_x, I_y = __get_directions(img1)
-    I_t = np.subtract(img1, img2)
+    # I_x, I_y = __get_directions(img1)
+    # I_t = np.subtract(img1, img2)
+    kernel_x = np.array([[-1., 1.], [-1., 1.]])
+    kernel_y = np.array([[-1., -1.], [1., 1.]])
+    kernel_t = np.array([[1., 1.], [1., 1.]]) * .25  # *.25
+    I_x = cv2.filter2D(img1, -1, kernel_x)
+    I_y = cv2.filter2D(img1, -1, kernel_y)
+    I_t = cv2.filter2D(img2, -1, kernel_t) + cv2.filter2D(img1, -1, -kernel_t)
     height, width = img2.shape
     half_win_size, num_of_win_pixels = win_size // 2, win_size ** 2
     u_v_list, y_x_list = [], []
@@ -65,7 +71,7 @@ def opticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
 
 
 MIN_LAMDA = 1
-MAX_LAMDA_RATIO = 25
+MAX_LAMDA_RATIO = 50
 
 
 def __acceptable_eigenvalues(A: np.ndarray) -> bool:
@@ -81,6 +87,60 @@ def __get_directions(img: np.ndarray):
     X = cv2.filter2D(img, -1, v)
     Y = cv2.filter2D(img, -1, v.T)
     return X, Y
+
+
+def opticalFlowP(im1: np.ndarray, im2: np.ndarray, step_size=10,
+                 win_size=5) -> (np.ndarray, np.ndarray):
+    """
+    Given two images, returns the Translation from im1 to im2
+    :param im1: Image 1
+    :param im2: Image 2
+    :param step_size: The image sample size
+    :param win_size: The optical flow window size (odd number)
+    :return: Original points [[x,y]...], [[dU,dV]...] for each points
+    """
+    img1, img2 = im1, im2
+    if len(im1.shape) == 3:
+        img1 = cv2.cvtColor(im1, cv2.COLOR_RGB2GRAY)
+    if len(im2.shape) == 3:
+        img2 = cv2.cvtColor(im2, cv2.COLOR_RGB2GRAY)
+    # I_x, I_y = __get_directions(img1)
+    # I_t = np.subtract(img1, img2)
+    kernel_x = np.array([[-1., 1.], [-1., 1.]])
+    kernel_y = np.array([[-1., -1.], [1., 1.]])
+    kernel_t = np.array([[1., 1.], [1., 1.]]) * .25  # *.25
+    I_x = cv2.filter2D(img1, -1, kernel_x)
+    I_y = cv2.filter2D(img1, -1, kernel_y)
+    I_t = cv2.filter2D(img2, -1, kernel_t) + cv2.filter2D(img1, -1, -kernel_t)
+    height, width = img2.shape
+    half_win_size, num_of_win_pixels = win_size // 2, win_size ** 2
+    u_v_list, y_x_list = [], []
+    u = np.zeros(img1.shape)
+    v = np.zeros(img1.shape)
+    for i in range(int(max(step_size, win_size) / 2), height - int(max(step_size, win_size) / 2), step_size):
+        for j in range(int(max(step_size, win_size) / 2), width - int(max(step_size, win_size) / 2), step_size):
+            x_win = I_x[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+            y_win = I_y[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+            A = np.hstack((x_win.reshape(num_of_win_pixels, 1), y_win.reshape(num_of_win_pixels, 1)))
+            y_x_list.append((j, i))
+            if not __acceptable_eigenvalues(A):
+                u_v_list.append((0, 0))
+                continue
+            t_win = I_t[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+            b = (-1) * t_win.reshape(num_of_win_pixels, 1)
+            # y_x_list.append((j, i))
+            u_v = np.dot(np.linalg.pinv(A), b)
+            u_v_list.append(u_v)
+            u[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1] += u_v[0]
+            v[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1] += u_v[1]
+    # plt.quiver(u, v, color='r')
+    # plt.show()
+    # warped = warp(im1, y_x_list, u_v_list)
+    # plt.imshow(warped, cmap='gray')
+    # plt.show()
+    # warpCheck(im1, u, v)
+    #return np.array(y_x_list).reshape(-1, 2), np.array(u_v_list).reshape(-1, 2)
+    return u, v
 
 
 def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int, stepSize: int, winSize: int) -> np.ndarray:
@@ -99,23 +159,29 @@ def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int, stepSize: int, 
     plt.show()
     y_x = np.zeros((0, 0))
     u_v = np.zeros((0, 0))
+    u = np.zeros(gaus_pyr1[k-1].shape)
+    v = np.zeros(gaus_pyr1[k-1].shape)
     # total_u_v = np.zeros((img1.shape[0], img1.shape[1]))
     half_win_size, num_of_win_pixels = winSize // 2, winSize ** 2
     for i in range(k - 1, -1, -1):
-        for j in range(len(u_v)):
-            prev_y, prev_x, new_y, new_x = int(y_x[j][0]), int(y_x[j][1]), int(y_x[j][0] + u_v[j][0]), int(
-                y_x[j][1] + u_v[j][1])
-            gaus_pyr1[i][new_x - half_win_size:new_x + half_win_size + 1,
-            new_y - half_win_size:new_y + half_win_size + 1] \
-                = gaus_pyr1[i][prev_x - half_win_size:prev_x + half_win_size + 1,
-                  prev_y - half_win_size:prev_y + half_win_size + 1]
-            # total_u_v[new_x-half_win_size:new_x+half_win_size+1, new_y-half_win_size:new_y+half_win_size+1] += u_v[j]
-        y_x, u_v = np.array(opticalFlow(gaus_pyr1[i], gaus_pyr2[i], step_size=stepSize, win_size=winSize)) * 2
-        plt.imshow(gaus_pyr1[i], cmap='gray')
-        plt.show()
-    plt.imshow(gaus_pyr1[0], cmap='gray')
-    plt.show()
-    return gaus_pyr1[0]
+        warpCheck(gaus_pyr1[i], u, v)
+        # for j in range(len(u_v)):
+        #     prev_y, prev_x, new_y, new_x = int(y_x[j][0]), int(y_x[j][1]), int(y_x[j][0] + u_v[j][0]), int(
+        #         y_x[j][1] + u_v[j][1])
+        #     gaus_pyr1[i][new_x - half_win_size:new_x + half_win_size + 1,
+        #     new_y - half_win_size:new_y + half_win_size + 1] \
+        #         = gaus_pyr1[i][prev_x - half_win_size:prev_x + half_win_size + 1,
+        #           prev_y - half_win_size:prev_y + half_win_size + 1]
+        #     # total_u_v[new_x-half_win_size:new_x+half_win_size+1, new_y-half_win_size:new_y+half_win_size+1] += u_v[j]
+        # y_x, u_v = np.array(opticalFlow(gaus_pyr1[i], gaus_pyr2[i], step_size=stepSize, win_size=winSize)) * 2
+        u, v = np.array(opticalFlowP(gaus_pyr1[i], gaus_pyr2[i], step_size=stepSize, win_size=winSize)) * 2
+        u = gaussExpand(u, (u.shape[0]*2, u.shape[1]*2))
+        v = gaussExpand(v, (v.shape[0] * 2, v.shape[1] * 2))
+        # plt.imshow(gaus_pyr1[i], cmap='gray')
+        # plt.show()
+    # plt.imshow(gaus_pyr1[0], cmap='gray')
+    # plt.show()
+    return gaus_pyr1[0], gaus_pyr1[0]
 
 
 # def iterativeopticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
@@ -288,6 +354,54 @@ def maxCorrelationPoint(im1: np.ndarray, im2: np.ndarray):
     max_point_value = np.argmax(corr)
     y, x = np.unravel_index(max_point_value, corr.shape)
     return y, x, np.max(corr)
+
+
+
+# def vector_length(vector):
+#     return np.sqrt(vector[0] ** 2 + vector[1] ** 2)
+#
+#
+# def points_distance(point1, point2):
+#     return vector_length((point1[0] - point2[0], point1[1] - point2[1]))
+#
+#
+# def clamp(value, minimum, maximum):
+#     return max(min(value, maximum), minimum)
+#
+#
+# # https://stackoverflow.com/questions/34884779/whats-a-simple-way-of-warping-an-image-with-a-given-set-of-points
+# def warp(image: np.ndarray, y_x: np.ndarray, u_v: np.ndarray):
+#     result_pixels = np.zeros(image.shape)
+#     for y in range(image.shape[1]):
+#         for x in range(image.shape[0]):
+#             offset = [0, 0]
+#             for i in range(len(y_x)):
+#                 point_position = (y_x[i][0] + u_v[i][0], y_x[i][1] + u_v[i][1])
+#                 shift_vector = (u_v[i][0], u_v[i][1])
+#                 helper = 1.0 / (3 * (points_distance((x, y), point_position) / vector_length(shift_vector)) ** 4 + 1)
+#                 offset[0] -= helper * shift_vector[0]
+#                 offset[1] -= helper * shift_vector[1]
+#             coords = (
+#                 clamp(x + int(offset[0]), 0, image.shape[0] - 1), clamp(y + int(offset[1]), 0, image.shape[1] - 1))
+#             result_pixels[x, y] = image[coords[0], coords[1]]
+#     plt.imshow(result_pixels, cmap='gray')
+#     plt.show()
+#     return result_pixels
+
+
+def warpCheck(image: np.ndarray, u: np.ndarray, v: np.ndarray):
+    result = np.zeros(image.shape) - 1
+    print(u.shape[0])
+    print(v.shape[1])
+    for y in range(image.shape[1]):
+        for x in range(image.shape[0]):
+            result[int(x + u[x][y])][int(y + v[x][y])] = image[x][y]
+    mask = np.array([[1 if result[j][i] == -1 else 0 for i in range(image.shape[1])] for j in range(image.shape[0])])
+    #dst = cv2.inpaint(result / 255.0, mask / 1.0, 3, cv2.INPAINT_TELEA) # INPAINT_NS
+    intepolated = cv2.inpaint(cv2.convertScaleAbs(result), cv2.convertScaleAbs(mask), 1, cv2.INPAINT_TELEA)
+    # plt.imshow(intepolated, cmap='gray')
+    # plt.show()
+    return intepolated
 
 
 # ---------------------------------------------------------------------------
