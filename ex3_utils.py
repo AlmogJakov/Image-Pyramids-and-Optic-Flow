@@ -121,6 +121,7 @@ def opticalFlowP(im1: np.ndarray, im2: np.ndarray, step_size=10,
         for j in range(int(max(step_size, win_size) / 2), width - int(max(step_size, win_size) / 2), step_size):
             x_win = I_x[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
             y_win = I_y[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+            print(x_win.shape)
             A = np.hstack((x_win.reshape(num_of_win_pixels, 1), y_win.reshape(num_of_win_pixels, 1)))
             y_x_list.append((j, i))
             if not __acceptable_eigenvalues(A):
@@ -161,20 +162,21 @@ def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int, stepSize: int, 
     d_v = np.zeros(gaus_pyr1[k - 1].shape)
     for i in range(k - 1, -1, -1):
         warped = warpCheck(gaus_pyr1[i], d_u, d_v)
+        win_size = int(winSize / (i + 1)) if int(winSize / (i + 1)) % 2 == 1 else int(winSize / (i + 1)) + 1
         dd_u, dd_v = np.array(
-            opticalFlowP(warped, gaus_pyr2[i], step_size=stepSize, win_size=int(winSize / k + 2))) # int(winSize / k + 8)
+            opticalFlowP(warped, gaus_pyr2[i], step_size=stepSize, win_size=int(win_size)))  # int(winSize / k + 8)
         plt.imshow(dd_v, cmap='gray')
         plt.show()
-        # d_u, d_v = mergeUV(d_u, d_v, 2*np.floor(dd_u - np.mean(dd_u) + 0.5), 2*np.floor(dd_v - np.mean(dd_v) + 0.5))
-        d_u, d_v = mergeUV(d_u, d_v, dd_u * 2, dd_v * 2)
+        d_u, d_v = mergeUV(d_u, d_v, 4 * np.floor(dd_u - np.mean(dd_u) + 0.5), 4 * np.floor(dd_v - np.mean(dd_v) + 0.5))
+        # d_u, d_v = mergeUV(d_u, d_v, dd_u * 2, dd_v * 2)
         print(d_v.max())
-        printRes(warped, gaus_pyr2[i], d_u, d_v, stepSize, int(winSize / k + 2))
+        printRes(warped, gaus_pyr2[i], d_u, d_v, stepSize, int(win_size))
         if i == 0:
             break
-        #d_u = gaussExpand(d_u, gaus_pyr1[i - 1].shape) * 2
-        #d_v = gaussExpand(d_v, gaus_pyr1[i - 1].shape) * 2
-        d_u = np.kron(d_u, np.ones((2, 2), dtype=int))
-        d_v = np.kron(d_v, np.ones((2, 2), dtype=int))
+        # d_u = gaussExpand(d_u, gaus_pyr1[i - 1].shape) * 2
+        # d_v = gaussExpand(d_v, gaus_pyr1[i - 1].shape) * 2
+        d_u = blurImage2(np.kron(d_u, np.ones((2, 2), dtype=int)) * 2, 2)
+        d_v = blurImage2(np.kron(d_v, np.ones((2, 2), dtype=int)) * 2, 2)
     height, width = img1.shape
     u_v_list, y_x_list = [], []
     for i in range(int(max(stepSize, winSize) / 2), height - int(max(stepSize, winSize) / 2), stepSize):
@@ -200,6 +202,7 @@ def printRes(warped: np.ndarray, img2: np.ndarray, d_u: np.ndarray, d_v: np.ndar
     ax[1].imshow(img2, cmap='gray')
     ax[1].quiver(ptsi[:, 0], ptsi[:, 1], uvi[:, 0], uvi[:, 1], color='r')
     plt.show()
+
 
 def mergeUV(u: np.ndarray, v: np.ndarray, d_u: np.ndarray, d_v: np.ndarray):
     # new_u = np.zeros(u.shape)
@@ -348,38 +351,6 @@ def maxCorrelationPoint(im1: np.ndarray, im2: np.ndarray):
     return y, x, np.max(corr)
 
 
-# def vector_length(vector):
-#     return np.sqrt(vector[0] ** 2 + vector[1] ** 2)
-#
-#
-# def points_distance(point1, point2):
-#     return vector_length((point1[0] - point2[0], point1[1] - point2[1]))
-#
-#
-# def clamp(value, minimum, maximum):
-#     return max(min(value, maximum), minimum)
-#
-#
-# # https://stackoverflow.com/questions/34884779/whats-a-simple-way-of-warping-an-image-with-a-given-set-of-points
-# def warp(image: np.ndarray, y_x: np.ndarray, u_v: np.ndarray):
-#     result_pixels = np.zeros(image.shape)
-#     for y in range(image.shape[1]):
-#         for x in range(image.shape[0]):
-#             offset = [0, 0]
-#             for i in range(len(y_x)):
-#                 point_position = (y_x[i][0] + u_v[i][0], y_x[i][1] + u_v[i][1])
-#                 shift_vector = (u_v[i][0], u_v[i][1])
-#                 helper = 1.0 / (3 * (points_distance((x, y), point_position) / vector_length(shift_vector)) ** 4 + 1)
-#                 offset[0] -= helper * shift_vector[0]
-#                 offset[1] -= helper * shift_vector[1]
-#             coords = (
-#                 clamp(x + int(offset[0]), 0, image.shape[0] - 1), clamp(y + int(offset[1]), 0, image.shape[1] - 1))
-#             result_pixels[x, y] = image[coords[0], coords[1]]
-#     plt.imshow(result_pixels, cmap='gray')
-#     plt.show()
-#     return result_pixels
-
-
 def warpCheck(image: np.ndarray, u: np.ndarray, v: np.ndarray):
     result = np.zeros(image.shape) - 1
     print(str(result.shape) + str("gggg"))
@@ -387,7 +358,8 @@ def warpCheck(image: np.ndarray, u: np.ndarray, v: np.ndarray):
         for x in range(image.shape[0] - 2):
             # if int(x + u[x][y]) < result.shape[0] and int(y + v[x][y]) < result.shape[1]\
             #         and x < image.shape[0] and y < image.shape[1]:
-            if x < u.shape[0] and y < v.shape[1] and int(x + u[x][y]) < result.shape[0] and int(y + v[x][y]) < result.shape[1]:
+            if x < u.shape[0] and y < v.shape[1] and int(x + u[x][y]) < result.shape[0] and int(y + v[x][y]) < \
+                    result.shape[1]:
                 result[int(x + u[x][y])][int(y + v[x][y])] = image[x][y]
     mask = np.array([[1 if result[j][i] == -1 else 0 for i in range(image.shape[1])] for j in range(image.shape[0])])
     # dst = cv2.inpaint(result / 255.0, mask / 1.0, 3, cv2.INPAINT_TELEA) # INPAINT_NS

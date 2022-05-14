@@ -42,7 +42,7 @@ def hierarchicalkDemo(img_path):
     img_1 = cv2.cvtColor(cv2.imread(img_path1), cv2.COLOR_BGR2GRAY)
     img_2 = cv2.cvtColor(cv2.imread(img_path2), cv2.COLOR_BGR2GRAY)
     st = time.time()
-    STEP_SIZE, WIN_SIZE = 10, 59
+    STEP_SIZE, WIN_SIZE = 10, 29
     pts, uv = opticalFlow(img_1.astype(float), img_2.astype(float), step_size=STEP_SIZE, win_size=WIN_SIZE)
     ptsi, uvi = opticalFlowPyrLK(img_1.astype(float), img_2.astype(float), 6, stepSize=STEP_SIZE, winSize=WIN_SIZE)
     et = time.time()
