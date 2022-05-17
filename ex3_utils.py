@@ -71,7 +71,7 @@ def opticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
 
 
 MIN_LAMDA = 1
-MAX_LAMDA_RATIO = 50
+MAX_LAMDA_RATIO = 25
 
 
 def __acceptable_eigenvalues(A: np.ndarray) -> bool:
@@ -163,26 +163,42 @@ def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int, stepSize: int, 
     for i in range(k - 1, -1, -1):
         warped = warpCheck(gaus_pyr1[i], d_u, d_v)
         win_size = int(winSize / (i + 1)) if int(winSize / (i + 1)) % 2 == 1 else int(winSize / (i + 1)) + 1
+        step_size = int(stepSize / (i + 1)) if int(stepSize / (i + 1)) % 2 == 1 else int(stepSize / (i + 1)) + 1
         dd_u, dd_v = np.array(
-            opticalFlowP(warped, gaus_pyr2[i], step_size=stepSize, win_size=int(win_size)))  # int(winSize / k + 8)
+            opticalFlowP(warped, gaus_pyr2[i], step_size=step_size, win_size=int(win_size)))  # int(winSize / k + 8)
         plt.imshow(dd_v, cmap='gray')
         plt.show()
-        d_u, d_v = mergeUV(d_u, d_v, 4 * np.floor(dd_u - np.mean(dd_u) + 0.5), 4 * np.floor(dd_v - np.mean(dd_v) + 0.5))
-        # d_u, d_v = mergeUV(d_u, d_v, dd_u * 2, dd_v * 2)
+        dd_u = blurImage2(dd_u * 3, 3)
+        dd_v = blurImage2(dd_v * 3, 3)
+        dd_u = np.where(abs(dd_u - 0) > 1, dd_u, 0)
+        dd_v = np.where(abs(dd_v - 0) > 1, dd_v, 0)
+        dd_u = np.where(abs(dd_u - 0) < 1.1, dd_u, 0)
+        dd_v = np.where(abs(dd_v - 0) < 1.1, dd_v, 0)
+        d_u, d_v = mergeUV(d_u, d_v, dd_u * 2, dd_v * 2)
+        # d_u, d_v = d_u * 2, d_v * 2
         print(d_v.max())
-        printRes(warped, gaus_pyr2[i], d_u, d_v, stepSize, int(win_size))
+        print(d_u.max())
+        # printRes(warped, gaus_pyr2[i], d_u, d_v, stepSize, int(win_size))
         if i == 0:
             break
-        # d_u = gaussExpand(d_u, gaus_pyr1[i - 1].shape) * 2
-        # d_v = gaussExpand(d_v, gaus_pyr1[i - 1].shape) * 2
-        d_u = blurImage2(np.kron(d_u, np.ones((2, 2), dtype=int)) * 2, 2)
-        d_v = blurImage2(np.kron(d_v, np.ones((2, 2), dtype=int)) * 2, 2)
+        d_u = gaussExpand(d_u, gaus_pyr1[i - 1].shape) * 4
+        d_v = gaussExpand(d_v, gaus_pyr1[i - 1].shape) * 4
+        # d_u = np.kron(d_u, np.ones((2, 2), dtype=int))
+        # d_v = np.kron(d_v, np.ones((2, 2), dtype=int))
     height, width = img1.shape
     u_v_list, y_x_list = [], []
-    for i in range(int(max(stepSize, winSize) / 2), height - int(max(stepSize, winSize) / 2), stepSize):
-        for j in range(int(max(stepSize, winSize) / 2), width - int(max(stepSize, winSize) / 2), stepSize):
-            y_x_list.append((j, i))
-            u_v_list.append((int(d_u[i][j]), int(d_v[i][j])))
+    print(img1.shape)
+    print(d_u.shape)
+    print(d_v.shape)
+    d_u = to_shape(d_u, gaus_pyr1[0].shape)
+    d_v = to_shape(d_v, gaus_pyr1[0].shape)
+    win_iterator = int(max(stepSize, winSize) / 2)
+    for i in range(win_iterator, height - win_iterator, stepSize):
+        for j in range(win_iterator, width - win_iterator, stepSize):
+            if 0 <= j + d_v[i][j] < img1.shape[1] and 0 <= i + d_u[i][j] < img1.shape[0] \
+                    and (int(d_v[i][j]) != 0 or int(d_u[i][j]) != 0):
+                y_x_list.append((j, i))
+                u_v_list.append((int(d_u[i][j]), int(d_v[i][j])))
     return np.array(y_x_list).reshape(-1, 2), np.array(u_v_list).reshape(-1, 2)
 
 
@@ -205,24 +221,44 @@ def printRes(warped: np.ndarray, img2: np.ndarray, d_u: np.ndarray, d_v: np.ndar
 
 
 def mergeUV(u: np.ndarray, v: np.ndarray, d_u: np.ndarray, d_v: np.ndarray):
-    # new_u = np.zeros(u.shape)
-    # new_v = np.zeros(v.shape)
-    # for y in range(u.shape[1]):
-    #     for x in range(u.shape[0]):
-    #         if y + v[x][y] < u.shape[1] and x + u[x][y] < u.shape[1] < u.shape[0]:
-    #             new_u[x + u[x][y]][y + v[x][y]] = u[x][y]
-    #             new_v[x + u[x][y]][y + v[x][y]] = v[x][y]
-    # new_u += d_u
-    # new_v += d_v
     for y in range(u.shape[1]):
         for x in range(u.shape[0]):
-            if y + v[x][y] < u.shape[1] and x + u[x][y] < u.shape[0]:
+            if 0 <= y + v[x][y] < u.shape[1] and 0 <= x + u[x][y] < u.shape[0]:
                 move_u, move_v = int(u[x][y]), int(v[x][y])
                 u[x][y] += d_u[x + move_u][y + move_v]
                 d_u[x + move_u][y + move_v] = 0
                 v[x][y] += d_v[x + move_u][y + move_v]
                 d_v[x + move_u][y + move_v] = 0
     return u, v
+
+
+def warpCheck(image: np.ndarray, u: np.ndarray, v: np.ndarray):
+    result = np.zeros(image.shape) - 1
+    print(str(result.shape) + str("gggg"))
+    for y in range(image.shape[1] - 2):
+        for x in range(image.shape[0] - 2):
+            # if int(x + u[x][y]) < result.shape[0] and int(y + v[x][y]) < result.shape[1]\
+            #         and x < image.shape[0] and y < image.shape[1]:
+            if x < u.shape[0] and y < v.shape[1] and int(x + u[x][y]) < result.shape[0] and int(y + v[x][y]) < \
+                    result.shape[1] and int(x + u[x][y]) >= 0 and int(y + v[x][y]) >= 0:
+                result[int(x + u[x][y])][int(y + v[x][y])] = image[x][y]
+    mask = np.array([[1 if result[j][i] == -1 else 0 for i in range(image.shape[1])] for j in range(image.shape[0])])
+    # dst = cv2.inpaint(result / 255.0, mask / 1.0, 3, cv2.INPAINT_TELEA) # INPAINT_NS
+    interpolated = cv2.inpaint(cv2.convertScaleAbs(result), cv2.convertScaleAbs(mask), 1, cv2.INPAINT_TELEA)
+    plt.imshow(result, cmap='gray')
+    plt.show()
+    plt.imshow(interpolated, cmap='gray')
+    plt.show()
+    return interpolated
+
+
+# https://stackoverflow.com/questions/56357039/numpy-zero-padding-to-match-a-certain-shape
+def to_shape(a, shape):
+    y_, x_ = shape
+    y, x = a.shape
+    y_pad = max((y_ - y), 0)
+    x_pad = max((x_ - x), 0)
+    return np.pad(a, ((y_pad // 2, y_pad // 2 + y_pad % 2), (x_pad // 2, x_pad // 2 + x_pad % 2)), mode='constant')
 
 
 # ---------------------------------------------------------------------------
@@ -349,24 +385,6 @@ def maxCorrelationPoint(im1: np.ndarray, im2: np.ndarray):
     max_point_value = np.argmax(corr)
     y, x = np.unravel_index(max_point_value, corr.shape)
     return y, x, np.max(corr)
-
-
-def warpCheck(image: np.ndarray, u: np.ndarray, v: np.ndarray):
-    result = np.zeros(image.shape) - 1
-    print(str(result.shape) + str("gggg"))
-    for y in range(image.shape[1] - 2):
-        for x in range(image.shape[0] - 2):
-            # if int(x + u[x][y]) < result.shape[0] and int(y + v[x][y]) < result.shape[1]\
-            #         and x < image.shape[0] and y < image.shape[1]:
-            if x < u.shape[0] and y < v.shape[1] and int(x + u[x][y]) < result.shape[0] and int(y + v[x][y]) < \
-                    result.shape[1]:
-                result[int(x + u[x][y])][int(y + v[x][y])] = image[x][y]
-    mask = np.array([[1 if result[j][i] == -1 else 0 for i in range(image.shape[1])] for j in range(image.shape[0])])
-    # dst = cv2.inpaint(result / 255.0, mask / 1.0, 3, cv2.INPAINT_TELEA) # INPAINT_NS
-    intepolated = cv2.inpaint(cv2.convertScaleAbs(result), cv2.convertScaleAbs(mask), 1, cv2.INPAINT_TELEA)
-    plt.imshow(result, cmap='gray')
-    plt.show()
-    return intepolated
 
 
 # ---------------------------------------------------------------------------
