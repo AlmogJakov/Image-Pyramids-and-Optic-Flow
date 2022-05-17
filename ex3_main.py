@@ -40,11 +40,11 @@ def hierarchicalkDemo(img_path):
     # img_path1 = 'input/car1.png'
     # img_path2 = 'input/car2.png'
     img_path1 = 'input/plane1.jpg'
-    img_path2 = 'input/plane8.jpg'
+    img_path2 = 'input/plane16.jpg'
     img_1 = cv2.cvtColor(cv2.imread(img_path1), cv2.COLOR_BGR2GRAY)
     img_2 = cv2.cvtColor(cv2.imread(img_path2), cv2.COLOR_BGR2GRAY)
     st = time.time()
-    STEP_SIZE, WIN_SIZE = 29, 29
+    STEP_SIZE, WIN_SIZE = 20, 9
     pts, uv = opticalFlow(img_1.astype(float), img_2.astype(float), step_size=STEP_SIZE, win_size=WIN_SIZE)
     ptsi, uvi = opticalFlowPyrLK(img_1.astype(float), img_2.astype(float), 6, stepSize=STEP_SIZE, winSize=WIN_SIZE)
     et = time.time()

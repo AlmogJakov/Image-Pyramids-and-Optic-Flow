@@ -166,18 +166,20 @@ def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int, stepSize: int, 
         step_size = int(stepSize / (i + 1)) if int(stepSize / (i + 1)) % 2 == 1 else int(stepSize / (i + 1)) + 1
         dd_u, dd_v = np.array(
             opticalFlowP(warped, gaus_pyr2[i], step_size=step_size, win_size=int(win_size)))  # int(winSize / k + 8)
+
         plt.imshow(dd_v, cmap='gray')
         plt.show()
-        dd_u = blurImage2(dd_u * 3, 3)
-        dd_v = blurImage2(dd_v * 3, 3)
-        dd_u = np.where(abs(dd_u - 0) > 1, dd_u, 0)
-        dd_v = np.where(abs(dd_v - 0) > 1, dd_v, 0)
-        dd_u = np.where(abs(dd_u - 0) < 1.1, dd_u, 0)
-        dd_v = np.where(abs(dd_v - 0) < 1.1, dd_v, 0)
+        dd_u = blurImage2(dd_u * 4, 5)
+        dd_v = blurImage2(dd_v * 4, 5)
+        print(dd_v.max())
+        print(dd_u.max())
+        # dd_u = np.where(abs(dd_u - 0) > 0.75, dd_u, 0)
+        # dd_v = np.where(abs(dd_v - 0) > 0.75, dd_v, 0)
+        dd_u = np.where(abs(dd_u - 0) < 5, dd_u, 0)
+        dd_v = np.where(abs(dd_v - 0) < 5, dd_v, 0)
+
         d_u, d_v = mergeUV(d_u, d_v, dd_u * 2, dd_v * 2)
         # d_u, d_v = d_u * 2, d_v * 2
-        print(d_v.max())
-        print(d_u.max())
         # printRes(warped, gaus_pyr2[i], d_u, d_v, stepSize, int(win_size))
         if i == 0:
             break
@@ -187,11 +189,10 @@ def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int, stepSize: int, 
         # d_v = np.kron(d_v, np.ones((2, 2), dtype=int))
     height, width = img1.shape
     u_v_list, y_x_list = [], []
-    print(img1.shape)
-    print(d_u.shape)
-    print(d_v.shape)
-    d_u = to_shape(d_u, gaus_pyr1[0].shape)
-    d_v = to_shape(d_v, gaus_pyr1[0].shape)
+    d_u = np.round(to_shape(d_u, gaus_pyr1[0].shape))
+    d_v = np.round(to_shape(d_v, gaus_pyr1[0].shape))
+    print(d_v.max())
+    print(d_u.max())
     win_iterator = int(max(stepSize, winSize) / 2)
     for i in range(win_iterator, height - win_iterator, stepSize):
         for j in range(win_iterator, width - win_iterator, stepSize):
@@ -223,8 +224,9 @@ def printRes(warped: np.ndarray, img2: np.ndarray, d_u: np.ndarray, d_v: np.ndar
 def mergeUV(u: np.ndarray, v: np.ndarray, d_u: np.ndarray, d_v: np.ndarray):
     for y in range(u.shape[1]):
         for x in range(u.shape[0]):
-            if 0 <= y + v[x][y] < u.shape[1] and 0 <= x + u[x][y] < u.shape[0]:
-                move_u, move_v = int(u[x][y]), int(v[x][y])
+            move_u, move_v = int(u[x][y]), int(v[x][y])
+            if 0 <= y + move_v < d_u.shape[1] and 0 <= x + move_u < d_u.shape[0]\
+                    and 0 <= y < u.shape[1] and 0 <= x < u.shape[0]:
                 u[x][y] += d_u[x + move_u][y + move_v]
                 d_u[x + move_u][y + move_v] = 0
                 v[x][y] += d_v[x + move_u][y + move_v]
