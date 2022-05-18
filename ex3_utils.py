@@ -11,9 +11,8 @@ def myID() -> np.int:
     return 203201389
 
 
-# ---------------------------------------------------------------------------
-# ------------------------ Lucas Kanade optical flow ------------------------
-# ---------------------------------------------------------------------------
+# ------------------------------------------ Lucas Kanade optical flow ------------------------------------------
+
 
 """
 Since A^T * A is 2X2 Matrix we can get at most 2 eigenvalues.
@@ -23,8 +22,32 @@ Since A^T * A is 2X2 Matrix we can get at most 2 eigenvalues.
 Source: https://medium.com/building-autonomous-flight-software/lucas-kanade-optical-flow-942d6bc5a078
 """
 
+MIN_LAMDA = 1
+MAX_LAMDA_RATIO = 25
 
-# https://sandipanweb.wordpress.com/2018/02/25/implementing-lucas-kanade-optical-flow-algorithm-in-python/
+
+def __acceptable_eigenvalues(A: np.ndarray) -> bool:
+    squared_matrix = np.dot(np.transpose(A), A)
+    lamda1, lamda2 = np.sort(np.linalg.eigvals(squared_matrix))
+    if lamda1 > MIN_LAMDA and lamda2 > lamda1 and (lamda2 / lamda1) < MAX_LAMDA_RATIO:
+        return True
+    return False
+
+
+def __get_directions(img: np.ndarray):
+    v = np.array([[1, 0, -1]])
+    X = cv2.filter2D(img, -1, v)
+    Y = cv2.filter2D(img, -1, v.T)
+    return X, Y
+
+
+'''
+#################################################################################################################
+################################################# Original LK ###################################################
+#################################################################################################################
+'''
+
+
 def opticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
                 win_size=5) -> (np.ndarray, np.ndarray):
     """
@@ -60,62 +83,11 @@ def opticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
     return np.array(y_x_list).reshape(-1, 2), np.array(u_v_list).reshape(-1, 2)
 
 
-MIN_LAMDA = 1
-MAX_LAMDA_RATIO = 25
-
-
-def __acceptable_eigenvalues(A: np.ndarray) -> bool:
-    squared_matrix = np.dot(np.transpose(A), A)
-    lamda1, lamda2 = np.sort(np.linalg.eigvals(squared_matrix))
-    if lamda1 > MIN_LAMDA and lamda2 > lamda1 and (lamda2 / lamda1) < MAX_LAMDA_RATIO:
-        return True
-    return False
-
-
-def __get_directions(img: np.ndarray):
-    v = np.array([[1, 0, -1]])
-    X = cv2.filter2D(img, -1, v)
-    Y = cv2.filter2D(img, -1, v.T)
-    return X, Y
-
-
-def opticalFlowP(im1: np.ndarray, im2: np.ndarray, step_size=10, win_size=5) -> (np.ndarray, np.ndarray):
-    """
-    Given two images, returns the Translation from im1 to im2
-    :param im1: Image 1
-    :param im2: Image 2
-    :param step_size: The image sample size
-    :param win_size: The optical flow window size (odd number)
-    :return: Original points [[x,y]...], [[dU,dV]...] for each points
-    """
-    img1, img2 = im1, im2
-    if len(im1.shape) == 3:
-        img1 = cv2.cvtColor(im1, cv2.COLOR_RGB2GRAY)
-    if len(im2.shape) == 3:
-        img2 = cv2.cvtColor(im2, cv2.COLOR_RGB2GRAY)
-    I_x, I_y = __get_directions(img1)
-    I_t = np.subtract(img1, img2)
-    height, width = img2.shape
-    half_win_size, num_of_win_pixels = win_size // 2, win_size ** 2
-    u_v_list, y_x_list = [], []
-    u = np.zeros(img1.shape)
-    v = np.zeros(img1.shape)
-    for i in range(int(max(step_size, win_size) / 2), height - int(max(step_size, win_size) / 2), step_size):
-        for j in range(int(max(step_size, win_size) / 2), width - int(max(step_size, win_size) / 2), step_size):
-            x_win = I_x[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
-            y_win = I_y[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
-            A = np.hstack((x_win.reshape(num_of_win_pixels, 1), y_win.reshape(num_of_win_pixels, 1)))
-            y_x_list.append((j, i))
-            if not __acceptable_eigenvalues(A):
-                u_v_list.append((0, 0))
-                continue
-            t_win = I_t[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
-            b = (-1) * t_win.reshape(num_of_win_pixels, 1)
-            u_v = np.dot(np.linalg.pinv(A), b)
-            u_v_list.append(u_v)
-            u[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1] += u_v[0]
-            v[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1] += u_v[1]
-    return u, v
+'''
+#################################################################################################################
+########################################### Iterative LK (Pyramids) #############################################
+#################################################################################################################
+'''
 
 
 def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int, stepSize: int, winSize: int) -> np.ndarray:
@@ -158,6 +130,40 @@ def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int, stepSize: int, 
     return np.stack((u, v), axis=2)
 
 
+def opticalFlowP(im1: np.ndarray, im2: np.ndarray, step_size=10, win_size=5) -> (np.ndarray, np.ndarray):
+    """
+        This method identical to 'opticalFlow' above but adapted to 'opticalFlowPyrLK'
+    """
+    img1, img2 = im1, im2
+    if len(im1.shape) == 3:
+        img1 = cv2.cvtColor(im1, cv2.COLOR_RGB2GRAY)
+    if len(im2.shape) == 3:
+        img2 = cv2.cvtColor(im2, cv2.COLOR_RGB2GRAY)
+    I_x, I_y = __get_directions(img1)
+    I_t = np.subtract(img1, img2)
+    height, width = img2.shape
+    half_win_size, num_of_win_pixels = win_size // 2, win_size ** 2
+    u_v_list, y_x_list = [], []
+    u = np.zeros(img1.shape)
+    v = np.zeros(img1.shape)
+    for i in range(int(max(step_size, win_size) / 2), height - int(max(step_size, win_size) / 2), step_size):
+        for j in range(int(max(step_size, win_size) / 2), width - int(max(step_size, win_size) / 2), step_size):
+            x_win = I_x[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+            y_win = I_y[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+            A = np.hstack((x_win.reshape(num_of_win_pixels, 1), y_win.reshape(num_of_win_pixels, 1)))
+            y_x_list.append((j, i))
+            if not __acceptable_eigenvalues(A):
+                u_v_list.append((0, 0))
+                continue
+            t_win = I_t[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1]
+            b = (-1) * t_win.reshape(num_of_win_pixels, 1)
+            u_v = np.dot(np.linalg.pinv(A), b)
+            u_v_list.append(u_v)
+            u[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1] += u_v[0]
+            v[i - half_win_size: i + half_win_size + 1, j - half_win_size: j + half_win_size + 1] += u_v[1]
+    return u, v
+
+
 def ListedUV(d_u: np.ndarray, d_v: np.ndarray, stepSize: int, winSize: int):
     u_v_list, y_x_list = [], []
     height, width = d_u.shape
@@ -196,7 +202,6 @@ def warpUV(image: np.ndarray, u: np.ndarray, v: np.ndarray):
     return interpolated
 
 
-# https://stackoverflow.com/questions/56357039/numpy-zero-padding-to-match-a-certain-shape
 def to_shape(a, shape):
     y_, x_ = shape
     y, x = a.shape
@@ -206,117 +211,7 @@ def to_shape(a, shape):
                       (x_pad // 2, x_pad // 2 + x_pad % 2)), mode='constant')
 
 
-# ---------------------------------------------------------------------------
-# ------------------------ Image Alignment & Warping ------------------------
-# ---------------------------------------------------------------------------
-
-
-def findTranslationLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
-    """
-    :param im1: image 1 in grayscale format.
-    :param im2: image 1 after Translation.
-    :return: Translation matrix by LK.
-    """
-    # Calc U, V Matrices using LK iterative (pyramids)
-    step_size, win_size = 20, 9
-    UV = opticalFlowPyrLK(im1.astype(float), im2.astype(float), 6, stepSize=step_size, winSize=win_size)
-    U, V = np.array(UV[:, :, 0]), np.array(UV[:, :, 1])
-    pts, uv = ListedUV(U, V, stepSize=step_size, winSize=win_size)
-    rows, cols = im1.shape
-    # Find specific u, v that's giving the minimum error
-    min_error = np.square(np.abs(im2 - im1)).mean()
-    res_u, res_v = 0, 0
-    for u, v in uv:
-        cv2_warp_matrix = np.float32([[1, 0, u], [0, 1, v]])
-        cv2_warping_res = cv2.warpAffine(im1, cv2_warp_matrix, (cols, rows))
-        error = np.square(np.abs(im2 - cv2_warping_res)).mean()
-        if error < min_error:
-            min_error = error
-            res_u, res_v = u, v
-    # Result as warping matrix
-    warping_mat = np.array([[1, 0, res_u], [0, 1, res_v], [0, 0, 1]])
-    return warping_mat
-
-
-def findRigidLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
-    """
-    :param im1: input image 1 in grayscale format.
-    :param im2: image 1 after Rigid.
-    :return: Rigid matrix by LK.
-    """
-    rows, cols = im1.shape
-    theta = findRotation(im1, im2)
-    rotate_matrix = np.float32([[np.cos(theta), -np.sin(theta), 0],
-                                [np.sin(theta), np.cos(theta), 0]])
-    rotated = cv2.warpAffine(im1, rotate_matrix, (cols, rows))
-    # Calc U, V using LK iterative (pyramids)
-    translation_mat = findTranslationLK(rotated, im2)
-    u, v = translation_mat[0, 2], translation_mat[1, 2]
-    # Result as warping matrix
-    warping_mat = np.array([[np.cos(theta), -np.sin(theta), u],
-                            [np.sin(theta), np.cos(theta), v],
-                            [0, 0, 1]])
-    return warping_mat
-
-
-# https://stackoverflow.com/questions/58174390/how-to-detect-image-translation-with-only-numpy-and-pil
-def findTranslationCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
-    """
-    :param im1: input image 1 in grayscale format.
-    :param im2: image 1 after Translation.
-    :return: Translation matrix by correlation.
-    """
-    y, x, max_point_value = maxCorrelationPoint(im1, im2)
-    # Calculate maximum image size for im1 and im2
-    rows, cols = max(im1.shape[0], im2.shape[0]), max(im1.shape[1], im2.shape[1])
-    # Calculate the distance from the maximum error point to the midpoint
-    y_distance = rows // 2 - y
-    x_distance = cols // 2 - x
-    # Result as warping matrix
-    warping_mat = np.array([[1, 0, x_distance], [0, 1, y_distance], [0, 0, 1]])
-    return warping_mat
-
-
-# https://stackoverflow.com/questions/23619269/calculating-translation-value-and-rotation-angle-of-a-rotated-2d-image
-def findRigidCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
-    """
-    :param im1: input image 1 in grayscale format.
-    :param im2: image 1 after Rigid.
-    :return: Rigid matrix by correlation.
-    """
-    rows, cols = im1.shape
-    theta = findRotation(im1, im2)
-    rotate_matrix = np.float32([[np.cos(theta), -np.sin(theta), 0],
-                                [np.sin(theta), np.cos(theta), 0]])
-    rotated = cv2.warpAffine(im1, rotate_matrix, (cols, rows))
-    # Calc U, V using Corr
-    translation_mat = findTranslationCorr(rotated, im2)
-    u, v = translation_mat[0, 2], translation_mat[1, 2]
-    # Result as warping matrix
-    warping_mat = np.array([[np.cos(theta), -np.sin(theta), u],
-                            [np.sin(theta), np.cos(theta), v],
-                            [0, 0, 1]])
-    return warping_mat
-
-
-# https://github.com/ZhihaoZhu/Image-Warping
-def warpImages(im1: np.ndarray, im2: np.ndarray, T: np.ndarray) -> np.ndarray:
-    """
-    :param im1: input image 1 in grayscale format.
-    :param im2: input image 2 in grayscale format.
-    :param T: is a 3x3 matrix such that each pixel in image 2
-    is mapped under homogenous coordinates to image 1 (p2=Tp1).
-    :return: warp image 2 according to T and display both image1
-    and the wrapped version of the image2 in the same figure.
-    """
-    for i in range(0, im2.shape[0]):
-        for j in range(0, im2.shape[1]):
-            new_coordinates = np.linalg.inv(T).dot(np.array([j, i, 1]))
-            new_j, new_i = int(new_coordinates[0]), int(new_coordinates[1])
-            if 0 <= new_i < im1.shape[0] and 0 <= new_j < im1.shape[1]:
-                im2[i, j] = im1[new_i, new_j]
-    return im2.astype(im1.dtype)
-
+# ------------------------------------------ Image Alignment & Warping ------------------------------------------
 
 # https://stackoverflow.com/questions/58181398/how-to-find-correlation-between-two-images-using-numpy
 def maxCorrelationPoint(im1: np.ndarray, im2: np.ndarray):
@@ -356,9 +251,167 @@ def findRotation(im1: np.ndarray, im2: np.ndarray):
     return theta_res
 
 
-# ---------------------------------------------------------------------------
-# --------------------- Gaussian and Laplacian Pyramids ---------------------
-# ---------------------------------------------------------------------------
+'''
+#################################################################################################################
+########################################## Find Translation Using LK ############################################
+#################################################################################################################
+'''
+
+
+def findTranslationLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
+    """
+    :param im1: image 1 in grayscale format.
+    :param im2: image 1 after Translation.
+    :return: Translation matrix by LK.
+    """
+    # Calc U, V Matrices using LK iterative (pyramids)
+    step_size, win_size = 20, 9
+    UV = opticalFlowPyrLK(im1.astype(float), im2.astype(float), 6, stepSize=step_size, winSize=win_size)
+    U, V = np.array(UV[:, :, 0]), np.array(UV[:, :, 1])
+    pts, uv = ListedUV(U, V, stepSize=step_size, winSize=win_size)
+    rows, cols = im1.shape
+    # Find specific u, v that's giving the minimum error
+    min_error = np.square(np.abs(im2 - im1)).mean()
+    res_u, res_v = 0, 0
+    for u, v in uv:
+        cv2_warp_matrix = np.float32([[1, 0, u], [0, 1, v]])
+        cv2_warping_res = cv2.warpAffine(im1, cv2_warp_matrix, (cols, rows))
+        error = np.square(np.abs(im2 - cv2_warping_res)).mean()
+        if error < min_error:
+            min_error = error
+            res_u, res_v = u, v
+    # Result as warping matrix
+    warping_mat = np.array([[1, 0, res_u], [0, 1, res_v], [0, 0, 1]])
+    return warping_mat
+
+
+'''
+#################################################################################################################
+############################################# Find Rigid Using LK ###############################################
+#################################################################################################################
+'''
+
+
+def findRigidLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
+    """
+    :param im1: input image 1 in grayscale format.
+    :param im2: image 1 after Rigid.
+    :return: Rigid matrix by LK.
+    """
+    rows, cols = im1.shape
+    theta = findRotation(im1, im2)
+    rotate_matrix = np.float32([[np.cos(theta), -np.sin(theta), 0],
+                                [np.sin(theta), np.cos(theta), 0]])
+    rotated = cv2.warpAffine(im1, rotate_matrix, (cols, rows))
+    # Calc U, V using LK iterative (pyramids)
+    translation_mat = findTranslationLK(rotated, im2)
+    u, v = translation_mat[0, 2], translation_mat[1, 2]
+    # Result as warping matrix
+    warping_mat = np.array([[np.cos(theta), -np.sin(theta), u],
+                            [np.sin(theta), np.cos(theta), v],
+                            [0, 0, 1]])
+    return warping_mat
+
+
+'''
+#################################################################################################################
+######################################### Find Translation Using Corr ###########################################
+#################################################################################################################
+'''
+
+
+# https://stackoverflow.com/questions/58174390/how-to-detect-image-translation-with-only-numpy-and-pil
+def findTranslationCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
+    """
+    :param im1: input image 1 in grayscale format.
+    :param im2: image 1 after Translation.
+    :return: Translation matrix by correlation.
+    """
+    y, x, max_point_value = maxCorrelationPoint(im1, im2)
+    # Calculate maximum image size for im1 and im2
+    rows, cols = max(im1.shape[0], im2.shape[0]), max(im1.shape[1], im2.shape[1])
+    # Calculate the distance from the maximum error point to the midpoint
+    y_distance = rows // 2 - y
+    x_distance = cols // 2 - x
+    # Result as warping matrix
+    warping_mat = np.array([[1, 0, x_distance], [0, 1, y_distance], [0, 0, 1]])
+    return warping_mat
+
+
+'''
+#################################################################################################################
+############################################ Find Rigid Using Corr ##############################################
+#################################################################################################################
+'''
+
+
+# https://stackoverflow.com/questions/23619269/calculating-translation-value-and-rotation-angle-of-a-rotated-2d-image
+def findRigidCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
+    """
+    :param im1: input image 1 in grayscale format.
+    :param im2: image 1 after Rigid.
+    :return: Rigid matrix by correlation.
+    """
+    rows, cols = im1.shape
+    theta = findRotation(im1, im2)
+    rotate_matrix = np.float32([[np.cos(theta), -np.sin(theta), 0],
+                                [np.sin(theta), np.cos(theta), 0]])
+    rotated = cv2.warpAffine(im1, rotate_matrix, (cols, rows))
+    # Calc U, V using Corr
+    translation_mat = findTranslationCorr(rotated, im2)
+    u, v = translation_mat[0, 2], translation_mat[1, 2]
+    # Result as warping matrix
+    warping_mat = np.array([[np.cos(theta), -np.sin(theta), u],
+                            [np.sin(theta), np.cos(theta), v],
+                            [0, 0, 1]])
+    return warping_mat
+
+
+'''
+#################################################################################################################
+################################################# Warp Images ###################################################
+#################################################################################################################
+'''
+
+
+# https://github.com/ZhihaoZhu/Image-Warping
+def warpImages(im1: np.ndarray, im2: np.ndarray, T: np.ndarray) -> np.ndarray:
+    """
+    :param im1: input image 1 in grayscale format.
+    :param im2: input image 2 in grayscale format.
+    :param T: is a 3x3 matrix such that each pixel in image 2
+    is mapped under homogenous coordinates to image 1 (p2=Tp1).
+    :return: warp image 2 according to T and display both image1
+    and the wrapped version of the image2 in the same figure.
+    """
+    for i in range(0, im2.shape[0]):
+        for j in range(0, im2.shape[1]):
+            new_coordinates = np.linalg.inv(T).dot(np.array([j, i, 1]))
+            new_j, new_i = int(new_coordinates[0]), int(new_coordinates[1])
+            if 0 <= new_i < im1.shape[0] and 0 <= new_j < im1.shape[1]:
+                im2[i, j] = im1[new_i, new_j]
+    return im2.astype(im1.dtype)
+
+
+# --------------------------------------- Gaussian and Laplacian Pyramids ---------------------------------------
+
+def blurImage2(in_image: np.ndarray, k_size: int) -> np.ndarray:
+    """
+    Blur an image using a Gaussian kernel using OpenCV built-in functions
+    :param in_image: Input image
+    :param k_size: Kernel size
+    :return: The Blurred image
+    """
+    gaussian_kernel = cv2.getGaussianKernel(k_size, 0)
+    gaussian_kernel = gaussian_kernel * gaussian_kernel.T
+    return cv2.filter2D(in_image, -1, gaussian_kernel, borderType=cv2.BORDER_REPLICATE)
+
+
+'''
+#################################################################################################################
+############################################## Gaussian Pyramids ################################################
+#################################################################################################################
+'''
 
 
 def gaussianPyr(img: np.ndarray, levels: int = 4) -> List[np.ndarray]:
@@ -376,6 +429,13 @@ def gaussianPyr(img: np.ndarray, levels: int = 4) -> List[np.ndarray]:
         img = np.array([[img[j][i] for i in range(0, width, 2)] for j in range(0, height, 2)])
         height, width = int(height / 2), int(width / 2)
     return pyr
+
+
+'''
+#################################################################################################################
+############################################## Laplaceian Reduce ################################################
+#################################################################################################################
+'''
 
 
 def laplaceianReduce(img: np.ndarray, levels: int = 4) -> List[np.ndarray]:
@@ -396,6 +456,13 @@ def laplaceianReduce(img: np.ndarray, levels: int = 4) -> List[np.ndarray]:
     return pyr
 
 
+'''
+#################################################################################################################
+################################################ Gauss Expand ###################################################
+#################################################################################################################
+'''
+
+
 def gaussExpand(img: np.ndarray, target_shape: np.shape):
     height, width = img.shape[0] * 2, img.shape[1] * 2
     gaus_expended_prev_level = np.zeros(target_shape)
@@ -404,6 +471,13 @@ def gaussExpand(img: np.ndarray, target_shape: np.shape):
             gaus_expended_prev_level[j, i] = img[j // 2][i // 2]
     gaus_expended_prev_level = np.clip(blurImage2(gaus_expended_prev_level, 5) * 4, 0, 1)
     return gaus_expended_prev_level
+
+
+'''
+#################################################################################################################
+############################################## Laplaceian Expand ################################################
+#################################################################################################################
+'''
 
 
 def laplaceianExpand(lap_pyr: List[np.ndarray]) -> np.ndarray:
@@ -416,6 +490,13 @@ def laplaceianExpand(lap_pyr: List[np.ndarray]) -> np.ndarray:
     for i in range(len(lap_pyr) - 2, -1, -1):
         image = np.clip(lap_pyr[i] + gaussExpand(image, lap_pyr[i].shape), 0, 1)
     return image
+
+
+'''
+#################################################################################################################
+############################################### Pyramids Blend ##################################################
+#################################################################################################################
+'''
 
 
 def pyrBlend(img_1: np.ndarray, img_2: np.ndarray,
@@ -437,13 +518,23 @@ def pyrBlend(img_1: np.ndarray, img_2: np.ndarray,
     return naive, laplaceianExpand(lap_pyr3)
 
 
-def blurImage2(in_image: np.ndarray, k_size: int) -> np.ndarray:
-    """
-    Blur an image using a Gaussian kernel using OpenCV built-in functions
-    :param in_image: Input image
-    :param k_size: Kernel size
-    :return: The Blurred image
-    """
-    gaussian_kernel = cv2.getGaussianKernel(k_size, 0)
-    gaussian_kernel = gaussian_kernel * gaussian_kernel.T
-    return cv2.filter2D(in_image, -1, gaussian_kernel, borderType=cv2.BORDER_REPLICATE)
+'''
+#################################################################################################################
+################################################# That's it! ####################################################
+#################################################################################################################
+░░░░░░░░░░░░░░░░░░░░░░██████████████░░░░░░░░░
+░░███████░░░░░░░░░░███▒▒▒▒▒▒▒▒▒▒▒▒▒███░░░░░░░
+░░█▒▒▒▒▒▒█░░░░░░░███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒███░░░░
+░░░█▒▒▒▒▒▒█░░░░██▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒██░░
+░░░░█▒▒▒▒▒█░░░██▒▒▒▒▒██▒▒▒▒▒▒▒▒▒▒▒██▒▒▒▒▒███░
+░░░░░█▒▒▒█░░░█▒▒▒▒▒▒████▒▒▒▒▒▒▒▒▒████▒▒▒▒▒▒██
+░░░█████████████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒██
+░░░█▒▒▒▒▒▒▒▒▒▒▒▒█▒▒▒▒▒▒▒▒▒▒▒███▒▒▒▒▒▒▒▒▒▒▒▒██
+░██▒▒▒▒▒▒▒▒▒▒▒▒▒█▒▒▒██▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒██▒▒▒▒██
+██▒▒▒███████████▒▒▒▒▒██▒▒▒▒▒▒▒▒▒▒▒▒▒██▒▒▒▒▒██
+█▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒█▒▒▒▒▒▒█████████████▒▒▒▒▒▒▒██
+██▒▒▒▒▒▒▒▒▒▒▒▒▒▒█▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒██░
+░█▒▒▒███████████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒██░░░
+░██▒▒▒▒▒▒▒▒▒▒████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒█░░░░░
+░░████████████░░░██████████████████████░░░░░░
+'''
