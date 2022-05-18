@@ -15,10 +15,10 @@ def lkDemo(img_path):
     img_1 = cv2.resize(img_1, (0, 0), fx=.5, fy=0.5)
     t = np.array([[1, 0, -.2],
                   [0, 1, -.1],
-                  [0, 0, 1]], dtype=float)
+                  [0, 0, 1]], dtype=np.float)
     img_2 = cv2.warpPerspective(img_1, t, img_1.shape[::-1])
     st = time.time()
-    pts, uv = opticalFlow(img_1.astype(float), img_2.astype(float), step_size=20, win_size=5)
+    pts, uv = opticalFlow(img_1.astype(np.float), img_2.astype(np.float), step_size=20, win_size=5)
     et = time.time()
 
     print("Time: {:.4f}".format(et - st))
@@ -35,12 +35,34 @@ def hierarchicalkDemo(img_path):
     :return:
     """
     print("Hierarchical LK Demo")
-    print("LK Demo")
     img_path1 = 'input/plane1.jpg'
     img_path2 = 'input/plane16.jpg'
     img_1 = cv2.cvtColor(cv2.imread(img_path1), cv2.COLOR_BGR2GRAY)
     img_2 = cv2.cvtColor(cv2.imread(img_path2), cv2.COLOR_BGR2GRAY)
     st = time.time()
+    STEP_SIZE, WIN_SIZE = 20, 9
+    # calc hierarchical LK output
+    UV = opticalFlowPyrLK(img_1.astype(float), img_2.astype(float), 6, stepSize=STEP_SIZE, winSize=WIN_SIZE)
+    U, V = np.array(UV[:, :, 0]), np.array(UV[:, :, 1])
+    pts, uv = ListedUV(U, V, stepSize=STEP_SIZE, winSize=WIN_SIZE)
+    # Print results
+    et = time.time()
+    print("Time: {:.4f}".format(et - st))
+    # Plot hierarchical LK Output
+    displayOpticalFlow(img_2, pts, uv)
+
+
+def compareLK(img_path):
+    """
+    ADD TEST
+    :param img_path: Image input
+    :return:
+    """
+    print("Compare LK Demo")
+    img_path1 = 'input/plane1.jpg'
+    img_path2 = 'input/plane16.jpg'
+    img_1 = cv2.cvtColor(cv2.imread(img_path1), cv2.COLOR_BGR2GRAY)
+    img_2 = cv2.cvtColor(cv2.imread(img_path2), cv2.COLOR_BGR2GRAY)
     STEP_SIZE, WIN_SIZE = 20, 9
     # Calc LK output
     pts, uv = opticalFlow(img_1.astype(float), img_2.astype(float), step_size=STEP_SIZE, win_size=WIN_SIZE)
@@ -49,10 +71,6 @@ def hierarchicalkDemo(img_path):
     U, V = np.array(UV[:, :, 0]), np.array(UV[:, :, 1])
     ptsi, uvi = ListedUV(U, V, stepSize=STEP_SIZE, winSize=WIN_SIZE)
     # Print results
-    et = time.time()
-    print("Time: {:.4f}".format(et - st))
-    print(np.median(uv, 0))
-    print(np.mean(uv, 0))
     # Plot both LK and hierarchical LK Output
     f, ax = plt.subplots(1, 2)
     ax[0].set_title('Optical Flow')
@@ -62,18 +80,6 @@ def hierarchicalkDemo(img_path):
     ax[1].imshow(img_2, cmap='gray')
     ax[1].quiver(ptsi[:, 0], ptsi[:, 1], uvi[:, 0], uvi[:, 1], color='r')
     plt.show()
-
-
-def compareLK(img_path):
-    """
-    ADD TEST
-    Compare the two results from both functions.
-    :param img_path: Image input
-    :return:
-    """
-    print("Compare LK & Hierarchical LK")
-
-    pass
 
 
 def displayOpticalFlow(img: np.ndarray, pts: np.ndarray, uvs: np.ndarray):
@@ -87,7 +93,9 @@ def displayOpticalFlow(img: np.ndarray, pts: np.ndarray, uvs: np.ndarray):
 # ------------------------ Image Alignment & Warping ------------------------
 # ---------------------------------------------------------------------------
 
+
 def findTranslationLKDemo():
+    print("Find Translation LK Demo")
     img_path = 'input/Dense_Motion_A.jpg'
     orig_img = np.array(cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY))
     rows, cols = orig_img.shape
@@ -112,6 +120,7 @@ def findTranslationLKDemo():
 
 
 def findRigidLKDemo():
+    print("Find Rigid LK Demo")
     img_path = 'input/Dense_Motion_A.jpg'
     orig_img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     rows, cols = orig_img.shape
@@ -137,6 +146,7 @@ def findRigidLKDemo():
 
 
 def findTranslationCorrDemo():
+    print("Find Translation Corr Demo")
     img_path = 'input/Dense_Motion_A.jpg'
     orig_img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     rows, cols = orig_img.shape
@@ -162,6 +172,7 @@ def findTranslationCorrDemo():
 
 
 def findRigidCorrDemo():
+    print("Find Rigid Corr Demo")
     img_path = 'input/Dense_Motion_A.jpg'
     orig_img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     rows, cols = orig_img.shape
@@ -222,9 +233,9 @@ def pyrGaussianDemo(img_path):
     print("Gaussian Pyramid Demo")
 
     img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB) / 255
-    # img = cv2.cvtColor(np.array(img).astype('float32') * 255, cv2.COLOR_RGB2GRAY) / 255
     lvls = 4
     gau_pyr = gaussianPyr(img, lvls)
+
     h, w = gau_pyr[0].shape[:2]
     canv_h = h
     widths = np.cumsum([w // (2 ** i) for i in range(lvls)])
@@ -263,6 +274,7 @@ def pyrLaplacianDemo(img_path):
 
 
 def blendDemo():
+    print("Blending Demo")
     im1 = cv2.cvtColor(cv2.imread('input/sunset.jpg'), cv2.COLOR_BGR2RGB) / 255
     im2 = cv2.cvtColor(cv2.imread('input/cat.jpg'), cv2.COLOR_BGR2RGB) / 255
     mask = cv2.cvtColor(cv2.imread('input/mask_cat.jpg'), cv2.COLOR_BGR2RGB) / 255
@@ -284,19 +296,18 @@ def blendDemo():
 
 def main():
     print("ID:", myID())
-
     img_path = 'input/boxMan.jpg'
-    # lkDemo(img_path)
-    # hierarchicalkDemo(img_path)
-    # compareLK(img_path)
+    lkDemo(img_path)
+    hierarchicalkDemo(img_path)
+    compareLK(img_path)
     findTranslationLKDemo()
     findRigidLKDemo()
-    # findTranslationCorrDemo()
-    # findRigidCorrDemo()
-    # imageWarpingDemo(img_path)
-    # pyrGaussianDemo('input/pyr_bit.jpg')
-    # pyrLaplacianDemo('input/pyr_bit.jpg')
-    # blendDemo()
+    findTranslationCorrDemo()
+    findRigidCorrDemo()
+    imageWarpingDemo(img_path)
+    pyrGaussianDemo('input/pyr_bit.jpg')
+    pyrLaplacianDemo('input/pyr_bit.jpg')
+    blendDemo()
 
 
 if __name__ == '__main__':
