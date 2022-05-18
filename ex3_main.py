@@ -62,7 +62,6 @@ def hierarchicalkDemo(img_path):
     ax[1].quiver(ptsi[:, 0], ptsi[:, 1], uvi[:, 0], uvi[:, 1], color='r')
     plt.show()
 
-
     # img_path1 = 'input/Dense_Motion_A.jpg'
     # img_path2 = 'input/Dense_Motion_B.jpg'
     # img_1 = cv2.cvtColor(cv2.imread(img_path1), cv2.COLOR_BGR2GRAY)
@@ -98,10 +97,12 @@ def displayOpticalFlow(img: np.ndarray, pts: np.ndarray, uvs: np.ndarray):
 def findTranslationCorrDemo():
     img_path = 'input/Dense_Motion_A.jpg'
     img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
+    rows, cols = img.shape
+    img2 = np.array(np.zeros((rows * 2, cols)))
     trans_mat = np.array([[1, 0, 10],
                           [0, 1, 50],
                           [0, 0, 1]])
-    trans_img = warpImages(img, np.zeros(img.shape), trans_mat)
+    trans_img = warpImages(img, img2, trans_mat)
     plt.imshow(trans_img, cmap='gray')
     plt.show()
     print(findTranslationCorr(img, trans_img))
@@ -110,7 +111,7 @@ def findTranslationCorrDemo():
 def findRigidCorrDemo():
     img_path = 'input/Dense_Motion_A.jpg'
     img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
-    theta = 0.5
+    theta = 0.3
     rotat_mat = np.array([[np.cos(theta), -np.sin(theta), -5],
                           [np.sin(theta), np.cos(theta), 15],
                           [0, 0, 1]])
@@ -128,25 +129,23 @@ def imageWarpingDemo(img_path):
     """
     print("Image Warping Demo")
     img_path1 = 'input/sphere1.jpg'
-    T = [[1, 2, 0], [2, 1, 0], [0, 2, 1]]
-    img1 = np.array(cv2.imread(img_path1))
-    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
-    img2 = np.array(np.zeros(img1.shape))
-    res = warpImages(img1, img2, T)
-    f, ax = plt.subplots(1, 2)
+    img1 = np.array(cv2.imread(img_path1, 0))
+    rows, cols = img1.shape
+    img2 = np.array(np.zeros((rows * 2, cols)))
+    mine_warp_matrix = [[1, 2, 0], [2, 1, 0], [0, 2, 1]]
+    mine_warping_res = warpImages(img1, img2, mine_warp_matrix)
+    cv2_warp_matrix = np.float32([[1, 2, 0],
+                                  [2, 1, 0]])
+    # warpAffine get (cols, rows) shape and not (rows, cols) as regular
+    cv2_warping_res = cv2.warpAffine(img1, cv2_warp_matrix, (cols, rows * 2))
+    f, ax = plt.subplots(1, 3)
     ax[0].set_title('Original Image')
-    ax[1].set_title('Warped Image')
-    ax[0].imshow(img1)
-    ax[1].imshow(res)
+    ax[1].set_title('Mine Output')
+    ax[2].set_title('CV2 Output')
+    ax[0].imshow(img1, cmap='gray')
+    ax[1].imshow(mine_warping_res, cmap='gray')
+    ax[2].imshow(cv2_warping_res, cmap='gray')
     plt.show()
-    ############################ OpenCV Warp ############################
-    # img = cv2.imread(img_path1, 0)
-    # rows, cols = img.shape
-    # M = np.float32([[1, 0, 10], [0, 1, 50]])
-    # dst = cv2.warpAffine(img, M, (cols,rows))
-    # plt.imshow(dst, cmap='gray')
-    # plt.show()
-    pass
 
 
 # ---------------------------------------------------------------------------
@@ -222,11 +221,11 @@ def main():
     print("ID:", myID())
 
     img_path = 'input/boxMan.jpg'
-    #lkDemo(img_path)
+    # lkDemo(img_path)
     hierarchicalkDemo(img_path)
     # compareLK(img_path)
     # findTranslationCorrDemo()
-    # findRigidCorrDemo()
+    findRigidCorrDemo()
     # imageWarpingDemo(img_path)
     #
     # pyrGaussianDemo('input/pyr_bit.jpg')
