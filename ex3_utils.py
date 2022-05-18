@@ -374,7 +374,6 @@ def findRigidCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
 '''
 
 
-# https://github.com/ZhihaoZhu/Image-Warping
 def warpImages(im1: np.ndarray, im2: np.ndarray, T: np.ndarray) -> np.ndarray:
     """
     :param im1: input image 1 in grayscale format.
