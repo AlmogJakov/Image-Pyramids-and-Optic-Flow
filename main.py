@@ -21,21 +21,30 @@ if __name__ == '__main__':
     print_hi('PyCharm')
     print("Your OpenCV version is: " + cv2.__version__)
 
-    img_path1 = 'input/Dense_Motion_A.jpg'
-    img_path2 = 'input/Dense_Motion_B.jpg'
-    img_1 = cv2.cvtColor(cv2.imread(img_path1), cv2.COLOR_BGR2GRAY)
+    # img_path1 = 'input/Dense_Motion_A.jpg'
+    # img_path2 = 'input/Dense_Motion_B.jpg'
+    # img_1 = cv2.cvtColor(cv2.imread(img_path1), cv2.COLOR_BGR2GRAY)
+    #
+    # u = np.array([[1, 0, 0],
+    #               [0, 0, 0]])
+    # v = np.array([[1, 0, 0],
+    #               [0, 0, 0]])
+    # d_u = np.array([[0, 0, 0],
+    #                 [0, 0, 0]])
+    # d_v = np.array([[0, 0, 0],
+    #                 [0, 1, 0]])
+    #
+    # new_u, new_v = mergeUV(u, v, d_u, d_v)
+    #
+    # print(new_v)
 
-    u = np.array([[1, 0, 0],
-                  [0, 0, 0]])
-    v = np.array([[1, 0, 0],
-                  [0, 0, 0]])
-    d_u = np.array([[0, 0, 0],
-                    [0, 0, 0]])
-    d_v = np.array([[0, 0, 0],
-                    [0, 1, 0]])
+    u = np.array([[1, 2, 3],
+                  [4, 5, 6]])
+    v = np.array([[7, 8, 9],
+                  [10, 11, 12]])
+    UV = np.stack((u, v), axis=2)
+    #print(UV)
 
-    new_u, new_v = mergeUV(u, v, d_u, d_v)
-
-    print(new_v)
+    print(UV[:,:,0])
 
 

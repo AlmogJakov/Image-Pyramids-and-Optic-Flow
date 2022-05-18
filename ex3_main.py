@@ -1,5 +1,6 @@
 from ex3_utils import *
 import time
+import matplotlib.pyplot as plt
 
 
 # ---------------------------------------------------------------------------
@@ -35,24 +36,24 @@ def hierarchicalkDemo(img_path):
     """
     print("Hierarchical LK Demo")
     print("LK Demo")
-    img_path1 = 'input/sphere1.jpg'
-    img_path2 = 'input/sphere2.jpg'
-    # img_path1 = 'input/car1.png'
-    # img_path2 = 'input/car2.png'
     img_path1 = 'input/plane1.jpg'
     img_path2 = 'input/plane16.jpg'
     img_1 = cv2.cvtColor(cv2.imread(img_path1), cv2.COLOR_BGR2GRAY)
     img_2 = cv2.cvtColor(cv2.imread(img_path2), cv2.COLOR_BGR2GRAY)
     st = time.time()
     STEP_SIZE, WIN_SIZE = 20, 9
+    # Calc LK output
     pts, uv = opticalFlow(img_1.astype(float), img_2.astype(float), step_size=STEP_SIZE, win_size=WIN_SIZE)
-    ptsi, uvi = opticalFlowPyrLK(img_1.astype(float), img_2.astype(float), 6, stepSize=STEP_SIZE, winSize=WIN_SIZE)
+    # calc hierarchical LK output
+    UV = opticalFlowPyrLK(img_1.astype(float), img_2.astype(float), 6, stepSize=STEP_SIZE, winSize=WIN_SIZE)
+    U, V = np.array(UV[:, :, 0]), np.array(UV[:, :, 1])
+    ptsi, uvi = ListedUV(U, V, stepSize=STEP_SIZE, winSize=WIN_SIZE)
+    # Print results
     et = time.time()
-
     print("Time: {:.4f}".format(et - st))
     print(np.median(uv, 0))
     print(np.mean(uv, 0))
-
+    # Plot both LK and hierarchical LK Output
     f, ax = plt.subplots(1, 2)
     ax[0].set_title('Optical Flow')
     ax[1].set_title('Iterative Optical Flow')
@@ -61,14 +62,6 @@ def hierarchicalkDemo(img_path):
     ax[1].imshow(img_2, cmap='gray')
     ax[1].quiver(ptsi[:, 0], ptsi[:, 1], uvi[:, 0], uvi[:, 1], color='r')
     plt.show()
-
-    # img_path1 = 'input/Dense_Motion_A.jpg'
-    # img_path2 = 'input/Dense_Motion_B.jpg'
-    # img_1 = cv2.cvtColor(cv2.imread(img_path1), cv2.COLOR_BGR2GRAY)
-    # img_2 = cv2.cvtColor(cv2.imread(img_path2), cv2.COLOR_BGR2GRAY)
-    # STEP_SIZE, WIN_SIZE = 5, 29
-    # opticalFlowPyrLK(img_1.astype(float), img_2.astype(float), 5, stepSize=STEP_SIZE, winSize=WIN_SIZE)
-    pass
 
 
 def compareLK(img_path):
@@ -94,31 +87,103 @@ def displayOpticalFlow(img: np.ndarray, pts: np.ndarray, uvs: np.ndarray):
 # ------------------------ Image Alignment & Warping ------------------------
 # ---------------------------------------------------------------------------
 
+def findTranslationLKDemo():
+    img_path = 'input/Dense_Motion_A.jpg'
+    orig_img = np.array(cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY))
+    rows, cols = orig_img.shape
+    img2 = np.array(np.zeros((rows, cols)))
+    orig_warping_mat = np.array([[1, 0, 5],
+                                 [0, 1, 8],
+                                 [0, 0, 1]])
+    warped_img = warpImages(orig_img, img2, orig_warping_mat)
+    result = findTranslationLK(orig_img, warped_img)
+    # Plot Warping Output Using Original Translation VS Result Translation
+    warped_using_res = warpImages(orig_img, np.zeros(orig_img.shape), result)
+    f, ax = plt.subplots(1, 3)
+    plt.suptitle("\nFind Translation Using LK\n(up to ~ 8 pixels movement)", size=18)
+    ax[0].set_title('Original Image')
+    ax[1].set_title('Output Using\n Original Translation', loc='center', wrap=True)
+    ax[2].set_title('Output Using\n Result Translation', loc='center', wrap=True)
+    ax[0].imshow(orig_img, cmap='gray')
+    ax[1].imshow(warped_img, cmap='gray')
+    ax[2].imshow(warped_using_res, cmap='gray')
+    plt.show()
+    # print(result)
+
+
+def findRigidLKDemo():
+    img_path = 'input/Dense_Motion_A.jpg'
+    orig_img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
+    rows, cols = orig_img.shape
+    img2 = np.array(np.zeros((rows, cols)))
+    theta = 0.3
+    orig_warping_mat = np.array([[np.cos(theta), -np.sin(theta), -5],
+                                 [np.sin(theta), np.cos(theta), 8],
+                                 [0, 0, 1]])
+    warped_img = warpImages(orig_img, img2, orig_warping_mat)
+    result_warping_mat = findRigidLK(orig_img, warped_img)
+    # Plot Warping Output Using Original Translation VS Result Translation
+    warped_using_res = warpImages(orig_img, np.zeros(orig_img.shape), result_warping_mat)
+    f, ax = plt.subplots(1, 3)
+    plt.suptitle("\nFind Rigid Using LK\n(up to ~ 8 pixels movement)", size=18)
+    ax[0].set_title('Original Image')
+    ax[1].set_title('Output Using\n Original Rigid', loc='center', wrap=True)
+    ax[2].set_title('Output Using\n Result Rigid', loc='center', wrap=True)
+    ax[0].imshow(orig_img, cmap='gray')
+    ax[1].imshow(warped_img, cmap='gray')
+    ax[2].imshow(warped_using_res, cmap='gray')
+    plt.show()
+    # print(result)
+
+
 def findTranslationCorrDemo():
     img_path = 'input/Dense_Motion_A.jpg'
-    img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
-    rows, cols = img.shape
-    img2 = np.array(np.zeros((rows * 2, cols)))
-    trans_mat = np.array([[1, 0, 10],
-                          [0, 1, 50],
-                          [0, 0, 1]])
-    trans_img = warpImages(img, img2, trans_mat)
-    plt.imshow(trans_img, cmap='gray')
+    orig_img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
+    rows, cols = orig_img.shape
+    u, v = 10, 50
+    orig_warping_mat = np.array([[1, 0, u],
+                                 [0, 1, v],
+                                 [0, 0, 1]])
+    warped_img = warpImages(orig_img, np.array(np.zeros((rows + v + 5, cols + u + 5))), orig_warping_mat)
+    # Get result warping mat (3 X 3) using orig_img and warped_img
+    result_warping_mat = findTranslationCorr(orig_img, warped_img)
+    # Plot Warping Output Using Original Translation VS Result Translation
+    warped_using_res = warpImages(orig_img, np.array(np.zeros((rows + v + 5, cols + u + 5))), result_warping_mat)
+    f, ax = plt.subplots(1, 3)
+    plt.suptitle("\nFind Translation Using Corr", size=18)
+    ax[0].set_title('Original Image')
+    ax[1].set_title('Output Using\n Original Translation', loc='center', wrap=True)
+    ax[2].set_title('Output Using\n Result Translation', loc='center', wrap=True)
+    ax[0].imshow(orig_img, cmap='gray')
+    ax[1].imshow(warped_img, cmap='gray')
+    ax[2].imshow(warped_using_res, cmap='gray')
     plt.show()
-    print(findTranslationCorr(img, trans_img))
+    # print(result)
 
 
 def findRigidCorrDemo():
     img_path = 'input/Dense_Motion_A.jpg'
-    img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
-    theta = 0.3
-    rotat_mat = np.array([[np.cos(theta), -np.sin(theta), -5],
-                          [np.sin(theta), np.cos(theta), 15],
-                          [0, 0, 1]])
-    rotat_img = warpImages(img, np.zeros((img.shape[0], img.shape[1])), rotat_mat)
-    plt.imshow(rotat_img, cmap='gray')
+    orig_img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
+    rows, cols = orig_img.shape
+    u, v, theta = -5, 15, 0.3
+    orig_warping_mat = np.array([[np.cos(theta), -np.sin(theta), u],
+                                 [np.sin(theta), np.cos(theta), v],
+                                 [0, 0, 1]])
+    warped_img = warpImages(orig_img, np.array(np.zeros((rows + v + 5, cols + u + 5))), orig_warping_mat)
+    # Get result warping mat (3 X 3) using orig_img and warped_img
+    result_warping_mat = findRigidCorr(orig_img, warped_img)
+    # Plot Warping Output Using Original Translation VS Result Translation
+    warped_using_res = warpImages(orig_img, np.array(np.zeros((rows + v + 5, cols + u + 5))), result_warping_mat)
+    f, ax = plt.subplots(1, 3)
+    plt.suptitle("\nFind Rigid Using Corr", size=18)
+    ax[0].set_title('Original Image')
+    ax[1].set_title('Output Using\n Original Rigid', loc='center', wrap=True)
+    ax[2].set_title('Output Using\n Result Rigid', loc='center', wrap=True)
+    ax[0].imshow(orig_img, cmap='gray')
+    ax[1].imshow(warped_img, cmap='gray')
+    ax[2].imshow(warped_using_res, cmap='gray')
     plt.show()
-    print(findRigidCorr(img, rotat_img))
+    # print(result)
 
 
 def imageWarpingDemo(img_path):
@@ -222,12 +287,13 @@ def main():
 
     img_path = 'input/boxMan.jpg'
     # lkDemo(img_path)
-    hierarchicalkDemo(img_path)
+    # hierarchicalkDemo(img_path)
     # compareLK(img_path)
+    findTranslationLKDemo()
+    findRigidLKDemo()
     # findTranslationCorrDemo()
-    findRigidCorrDemo()
+    # findRigidCorrDemo()
     # imageWarpingDemo(img_path)
-    #
     # pyrGaussianDemo('input/pyr_bit.jpg')
     # pyrLaplacianDemo('input/pyr_bit.jpg')
     # blendDemo()

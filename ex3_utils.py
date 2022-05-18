@@ -1,10 +1,6 @@
-import sys
 from typing import List
-
 import numpy as np
 import cv2
-from numpy.linalg import LinAlgError
-import matplotlib.pyplot as plt
 
 
 def myID() -> np.int:
@@ -83,8 +79,7 @@ def __get_directions(img: np.ndarray):
     return X, Y
 
 
-def opticalFlowP(im1: np.ndarray, im2: np.ndarray, step_size=10,
-                 win_size=5) -> (np.ndarray, np.ndarray):
+def opticalFlowP(im1: np.ndarray, im2: np.ndarray, step_size=10, win_size=5) -> (np.ndarray, np.ndarray):
     """
     Given two images, returns the Translation from im1 to im2
     :param im1: Image 1
@@ -135,31 +130,41 @@ def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int, stepSize: int, 
     """
     gaus_pyr1 = gaussianPyr(img1, k)
     gaus_pyr2 = gaussianPyr(img2, k)
-    d_u = np.zeros(gaus_pyr1[k - 1].shape)
-    d_v = np.zeros(gaus_pyr1[k - 1].shape)
+    u = np.zeros(gaus_pyr1[k - 1].shape)
+    v = np.zeros(gaus_pyr1[k - 1].shape)
     for i in range(k - 1, -1, -1):
-        warped = warpCheck(gaus_pyr1[i], d_u, d_v)
+        # warp image 1 towards image 2 using u, v (first iteration insignificant since u = v = 0)
+        warped = warpUV(gaus_pyr1[i], u, v)
+        # calc winSize, stepSize for the current lvl
         win_size = int(winSize / (i + 1)) if int(winSize / (i + 1)) % 2 == 1 else int(winSize / (i + 1)) + 1
         step_size = int(stepSize / (i + 1)) if int(stepSize / (i + 1)) % 2 == 1 else int(stepSize / (i + 1)) + 1
-        dd_u, dd_v = np.array(
-            opticalFlowP(warped, gaus_pyr2[i], step_size=step_size, win_size=int(win_size)))  # int(winSize / k + 8)
-        dd_u = blurImage2(dd_u * 4, 5)
-        dd_v = blurImage2(dd_v * 4, 5)
-        dd_u = np.where(abs(dd_u - 0) < 5, dd_u, 0)
-        dd_v = np.where(abs(dd_v - 0) < 5, dd_v, 0)
-        d_u, d_v = mergeUV(d_u, d_v, dd_u * 2, dd_v * 2)
-        if i == 0:
-            break
-        d_u = gaussExpand(d_u, gaus_pyr1[i - 1].shape) * 4
-        d_v = gaussExpand(d_v, gaus_pyr1[i - 1].shape) * 4
-    height, width = img1.shape
+        # calc LK for the current lvl
+        d_u, d_v = np.array(opticalFlowP(warped, gaus_pyr2[i], step_size=step_size, win_size=int(win_size)))
+        # blur to accurate result
+        d_u = blurImage2(d_u * 4, 5)
+        d_v = blurImage2(d_v * 4, 5)
+        # avoid errors
+        d_u = np.where(abs(d_u - 0) < 5, d_u, 0)
+        d_v = np.where(abs(d_v - 0) < 5, d_v, 0)
+        # merge current d_u, d_v with total u, v
+        d_u, v = mergeUV(u, v, d_u * 2, d_v * 2)
+        # expand u, v dimension to the next level (except last iteration [i=0] which it the original shape)
+        if i != 0:
+            u = gaussExpand(u, gaus_pyr1[i - 1].shape) * 4
+            v = gaussExpand(v, gaus_pyr1[i - 1].shape) * 4
+    u = np.round(to_shape(u, gaus_pyr1[0].shape))
+    v = np.round(to_shape(v, gaus_pyr1[0].shape))
+    # return d_u, d_v as pairs
+    return np.stack((u, v), axis=2)
+
+
+def ListedUV(d_u: np.ndarray, d_v: np.ndarray, stepSize: int, winSize: int):
     u_v_list, y_x_list = [], []
-    d_u = np.round(to_shape(d_u, gaus_pyr1[0].shape))
-    d_v = np.round(to_shape(d_v, gaus_pyr1[0].shape))
+    height, width = d_u.shape
     win_iterator = int(max(stepSize, winSize) / 2)
     for i in range(win_iterator, height - win_iterator, stepSize):
         for j in range(win_iterator, width - win_iterator, stepSize):
-            if 0 <= j + d_v[i][j] < img1.shape[1] and 0 <= i + d_u[i][j] < img1.shape[0] \
+            if 0 <= j + d_v[i][j] < width and 0 <= i + d_u[i][j] < height \
                     and (int(d_v[i][j]) != 0 or int(d_u[i][j]) != 0):
                 y_x_list.append((j, i))
                 u_v_list.append((int(d_u[i][j]), int(d_v[i][j])))
@@ -179,7 +184,7 @@ def mergeUV(u: np.ndarray, v: np.ndarray, d_u: np.ndarray, d_v: np.ndarray):
     return u, v
 
 
-def warpCheck(image: np.ndarray, u: np.ndarray, v: np.ndarray):
+def warpUV(image: np.ndarray, u: np.ndarray, v: np.ndarray):
     result = np.zeros(image.shape) - 1
     for y in range(image.shape[1] - 2):
         for x in range(image.shape[0] - 2):
@@ -197,7 +202,8 @@ def to_shape(a, shape):
     y, x = a.shape
     y_pad = max((y_ - y), 0)
     x_pad = max((x_ - x), 0)
-    return np.pad(a, ((y_pad // 2, y_pad // 2 + y_pad % 2), (x_pad // 2, x_pad // 2 + x_pad % 2)), mode='constant')
+    return np.pad(a, ((y_pad // 2, y_pad // 2 + y_pad % 2),
+                      (x_pad // 2, x_pad // 2 + x_pad % 2)), mode='constant')
 
 
 # ---------------------------------------------------------------------------
@@ -211,8 +217,25 @@ def findTranslationLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     :param im2: image 1 after Translation.
     :return: Translation matrix by LK.
     """
-    
-    pass
+    # Calc U, V Matrices using LK iterative (pyramids)
+    step_size, win_size = 20, 9
+    UV = opticalFlowPyrLK(im1.astype(float), im2.astype(float), 6, stepSize=step_size, winSize=win_size)
+    U, V = np.array(UV[:, :, 0]), np.array(UV[:, :, 1])
+    pts, uv = ListedUV(U, V, stepSize=step_size, winSize=win_size)
+    rows, cols = im1.shape
+    # Find specific u, v that's giving the minimum error
+    min_error = np.square(np.abs(im2 - im1)).mean()
+    res_u, res_v = 0, 0
+    for u, v in uv:
+        cv2_warp_matrix = np.float32([[1, 0, u], [0, 1, v]])
+        cv2_warping_res = cv2.warpAffine(im1, cv2_warp_matrix, (cols, rows))
+        error = np.square(np.abs(im2 - cv2_warping_res)).mean()
+        if error < min_error:
+            min_error = error
+            res_u, res_v = u, v
+    # Result as warping matrix
+    warping_mat = np.array([[1, 0, res_u], [0, 1, res_v], [0, 0, 1]])
+    return warping_mat
 
 
 def findRigidLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
@@ -221,7 +244,19 @@ def findRigidLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     :param im2: image 1 after Rigid.
     :return: Rigid matrix by LK.
     """
-    pass
+    rows, cols = im1.shape
+    theta = findRotation(im1, im2)
+    rotate_matrix = np.float32([[np.cos(theta), -np.sin(theta), 0],
+                                [np.sin(theta), np.cos(theta), 0]])
+    rotated = cv2.warpAffine(im1, rotate_matrix, (cols, rows))
+    # Calc U, V using LK iterative (pyramids)
+    translation_mat = findTranslationLK(rotated, im2)
+    u, v = translation_mat[0, 2], translation_mat[1, 2]
+    # Result as warping matrix
+    warping_mat = np.array([[np.cos(theta), -np.sin(theta), u],
+                            [np.sin(theta), np.cos(theta), v],
+                            [0, 0, 1]])
+    return warping_mat
 
 
 # https://stackoverflow.com/questions/58174390/how-to-detect-image-translation-with-only-numpy-and-pil
@@ -237,6 +272,7 @@ def findTranslationCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     # Calculate the distance from the maximum error point to the midpoint
     y_distance = rows // 2 - y
     x_distance = cols // 2 - x
+    # Result as warping matrix
     warping_mat = np.array([[1, 0, x_distance], [0, 1, y_distance], [0, 0, 1]])
     return warping_mat
 
@@ -253,16 +289,16 @@ def findRigidCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     rotate_matrix = np.float32([[np.cos(theta), -np.sin(theta), 0],
                                 [np.sin(theta), np.cos(theta), 0]])
     rotated = cv2.warpAffine(im1, rotate_matrix, (cols, rows))
-    y, x, max_point_value = maxCorrelationPoint(rotated, im2)
-    y_distance = im1.shape[0] // 2 - y
-    x_distance = im1.shape[1] // 2 - x
-    warping_mat = np.array([[np.cos(theta), -np.sin(theta), x_distance],
-                            [np.sin(theta), np.cos(theta), y_distance],
+    # Calc U, V using Corr
+    translation_mat = findTranslationCorr(rotated, im2)
+    u, v = translation_mat[0, 2], translation_mat[1, 2]
+    # Result as warping matrix
+    warping_mat = np.array([[np.cos(theta), -np.sin(theta), u],
+                            [np.sin(theta), np.cos(theta), v],
                             [0, 0, 1]])
     return warping_mat
 
 
-# TODO: Inverse?
 # https://github.com/ZhihaoZhu/Image-Warping
 def warpImages(im1: np.ndarray, im2: np.ndarray, T: np.ndarray) -> np.ndarray:
     """
@@ -275,24 +311,24 @@ def warpImages(im1: np.ndarray, im2: np.ndarray, T: np.ndarray) -> np.ndarray:
     """
     for i in range(0, im2.shape[0]):
         for j in range(0, im2.shape[1]):
-            # new_coordinates = np.linalg.inv(T).dot(np.array([i, j, 1]))
             new_coordinates = np.linalg.inv(T).dot(np.array([j, i, 1]))
             new_j, new_i = int(new_coordinates[0]), int(new_coordinates[1])
-            # print("i:"+str(i)+",j:"+str(j)+" new_i:"+str(new_i)+",new_j:"+str(new_j))
             if 0 <= new_i < im1.shape[0] and 0 <= new_j < im1.shape[1]:
-                #print(im1[new_i, new_j])
                 im2[i, j] = im1[new_i, new_j]
     return im2.astype(im1.dtype)
 
 
+# https://stackoverflow.com/questions/58181398/how-to-find-correlation-between-two-images-using-numpy
 def maxCorrelationPoint(im1: np.ndarray, im2: np.ndarray):
-    # get rid of the averages, otherwise the results are not good
+    # Get rid of the averages, otherwise the results are not good
     rows, cols = max(im1.shape[0], im2.shape[0]), max(im1.shape[1], im2.shape[1])
     im1_gray = im1 - np.mean(im1)
     im2_gray = im2 - np.mean(im2)
-    im1_gray = np.pad(im1_gray, [(0, max(0, rows-im1.shape[0])), (0, max(0, cols-im1.shape[1]))], mode='constant')
-    im2_gray = np.pad(im2_gray, [(0, max(0, rows - im2.shape[0])), (0, max(0, cols - im2.shape[1]))], mode='constant')
-    # calculate the correlation image (without scipy)
+    im1_gray = np.pad(im1_gray, [(0, max(0, rows - im1.shape[0])),
+                                 (0, max(0, cols - im1.shape[1]))], mode='constant')
+    im2_gray = np.pad(im2_gray, [(0, max(0, rows - im2.shape[0])),
+                                 (0, max(0, cols - im2.shape[1]))], mode='constant')
+    # Calculate the correlation image (without scipy)
     pad = np.max(im1_gray.shape) // 2
     fft1 = np.fft.fft2(np.pad(im1_gray, pad))
     fft2 = np.fft.fft2(np.pad(im2_gray, pad))
@@ -306,8 +342,8 @@ def maxCorrelationPoint(im1: np.ndarray, im2: np.ndarray):
 
 def findRotation(im1: np.ndarray, im2: np.ndarray):
     rows, cols = im1.shape
-    max_error = -1
-    max_theta = -1
+    # Find the angle with the highest correlation point
+    max_error, theta_res = 0, 0
     for i in range(0, 360):
         theta = i * 0.0174532925  # degree to radian
         rotate_matrix = np.float32([[np.cos(theta), -np.sin(theta), 0],
@@ -316,8 +352,8 @@ def findRotation(im1: np.ndarray, im2: np.ndarray):
         y, x, error = maxCorrelationPoint(rotated, im2)
         if error > max_error:
             max_error = error
-            max_theta = theta
-    return max_theta
+            theta_res = theta
+    return theta_res
 
 
 # ---------------------------------------------------------------------------
