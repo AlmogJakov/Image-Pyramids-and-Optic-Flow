@@ -99,16 +99,14 @@ def findTranslationLKDemo():
     img_path = 'input/Dense_Motion_A.jpg'
     orig_img = np.array(cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY))
     rows, cols = orig_img.shape
-    img2 = np.array(np.zeros((rows, cols)))
-    orig_warping_mat = np.array([[1, 0, 5],
-                                 [0, 1, 8],
-                                 [0, 0, 1]])
-    warped_img = warpImages(orig_img, img2, orig_warping_mat)
+    orig_warping_mat = np.float32([[1, 0, 5],
+                                   [0, 1, 8]])
+    warped_img = cv2.warpAffine(orig_img, orig_warping_mat, (cols, rows))
     result = findTranslationLK(orig_img, warped_img)
     # Plot Warping Output Using Original Translation VS Result Translation
-    warped_using_res = warpImages(orig_img, np.zeros(orig_img.shape), result)
+    warped_using_res = cv2.warpAffine(orig_img, np.float32(result[0:2]), (cols, rows))
     f, ax = plt.subplots(1, 3)
-    plt.suptitle("\nFind Translation Using LK\n(up to ~ 8 pixels movement)", size=18)
+    plt.suptitle("\nFind Translation Using LK\n(good results up to ~ 10 pixels movement)", size=16)
     ax[0].set_title('Original Image')
     ax[1].set_title('Output Using\n Original Translation', loc='center', wrap=True)
     ax[2].set_title('Output Using\n Result Translation', loc='center', wrap=True)
@@ -124,17 +122,15 @@ def findRigidLKDemo():
     img_path = 'input/Dense_Motion_A.jpg'
     orig_img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     rows, cols = orig_img.shape
-    img2 = np.array(np.zeros((rows, cols)))
     theta = 0.3
-    orig_warping_mat = np.array([[np.cos(theta), -np.sin(theta), -5],
-                                 [np.sin(theta), np.cos(theta), 8],
-                                 [0, 0, 1]])
-    warped_img = warpImages(orig_img, img2, orig_warping_mat)
+    orig_warping_mat = np.float32([[np.cos(theta), -np.sin(theta), -5],
+                                   [np.sin(theta), np.cos(theta), 8]])
+    warped_img = cv2.warpAffine(orig_img, orig_warping_mat, (cols, rows))
     result_warping_mat = findRigidLK(orig_img, warped_img)
     # Plot Warping Output Using Original Translation VS Result Translation
-    warped_using_res = warpImages(orig_img, np.zeros(orig_img.shape), result_warping_mat)
+    warped_using_res = cv2.warpAffine(orig_img, np.float32(result_warping_mat[0:2]), (cols, rows))
     f, ax = plt.subplots(1, 3)
-    plt.suptitle("\nFind Rigid Using LK\n(up to ~ 8 pixels movement)", size=18)
+    plt.suptitle("\nFind Rigid Using LK\n(good results up to ~ 10 pixels movement)", size=16)
     ax[0].set_title('Original Image')
     ax[1].set_title('Output Using\n Original Rigid', loc='center', wrap=True)
     ax[2].set_title('Output Using\n Result Rigid', loc='center', wrap=True)
@@ -151,14 +147,13 @@ def findTranslationCorrDemo():
     orig_img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     rows, cols = orig_img.shape
     u, v = 10, 50
-    orig_warping_mat = np.array([[1, 0, u],
-                                 [0, 1, v],
-                                 [0, 0, 1]])
-    warped_img = warpImages(orig_img, np.array(np.zeros((rows + v + 5, cols + u + 5))), orig_warping_mat)
+    orig_warping_mat = np.float32([[1, 0, u],
+                                   [0, 1, v]])
+    warped_img = cv2.warpAffine(orig_img, orig_warping_mat, (cols + u + 5, rows + v + 5))
     # Get result warping mat (3 X 3) using orig_img and warped_img
     result_warping_mat = findTranslationCorr(orig_img, warped_img)
     # Plot Warping Output Using Original Translation VS Result Translation
-    warped_using_res = warpImages(orig_img, np.array(np.zeros((rows + v + 5, cols + u + 5))), result_warping_mat)
+    warped_using_res = cv2.warpAffine(orig_img, np.float32(result_warping_mat[0:2]), (cols + u + 5, rows + v + 5))
     f, ax = plt.subplots(1, 3)
     plt.suptitle("\nFind Translation Using Corr", size=18)
     ax[0].set_title('Original Image')
@@ -177,14 +172,13 @@ def findRigidCorrDemo():
     orig_img = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     rows, cols = orig_img.shape
     u, v, theta = -5, 15, 0.3
-    orig_warping_mat = np.array([[np.cos(theta), -np.sin(theta), u],
-                                 [np.sin(theta), np.cos(theta), v],
-                                 [0, 0, 1]])
-    warped_img = warpImages(orig_img, np.array(np.zeros((rows + v + 5, cols + u + 5))), orig_warping_mat)
+    orig_warping_mat = np.float32([[np.cos(theta), -np.sin(theta), u],
+                                   [np.sin(theta), np.cos(theta), v]])
+    warped_img = cv2.warpAffine(orig_img, orig_warping_mat, (cols + u + 5, rows + v + 5))
     # Get result warping mat (3 X 3) using orig_img and warped_img
     result_warping_mat = findRigidCorr(orig_img, warped_img)
     # Plot Warping Output Using Original Translation VS Result Translation
-    warped_using_res = warpImages(orig_img, np.array(np.zeros((rows + v + 5, cols + u + 5))), result_warping_mat)
+    warped_using_res = cv2.warpAffine(orig_img, np.float32(result_warping_mat[0:2]), (cols + u + 5, rows + v + 5))
     f, ax = plt.subplots(1, 3)
     plt.suptitle("\nFind Rigid Using Corr", size=18)
     ax[0].set_title('Original Image')
@@ -207,20 +201,20 @@ def imageWarpingDemo(img_path):
     img_path1 = 'input/sphere1.jpg'
     img1 = np.array(cv2.imread(img_path1, 0))
     rows, cols = img1.shape
-    img2 = np.array(np.zeros((rows * 2, cols)))
-    mine_warp_matrix = [[1, 2, 0], [2, 1, 0], [0, 2, 1]]
-    mine_warping_res = warpImages(img1, img2, mine_warp_matrix)
-    cv2_warp_matrix = np.float32([[1, 2, 0],
-                                  [2, 1, 0]])
-    # warpAffine get (cols, rows) shape and not (rows, cols) as regular
-    cv2_warping_res = cv2.warpAffine(img1, cv2_warp_matrix, (cols, rows * 2))
+    u, v = 10, 50
+    warping_mat = np.float32([[1, 0, u],
+                                   [0, 1, v],
+                                   [0, 0, 1]])
+    img2 = cv2.warpAffine(img1, np.float32(warping_mat[0:2]), (cols + u + 5, rows + v + 5))
+    result = warpImages(img1, img2, warping_mat)
     f, ax = plt.subplots(1, 3)
-    ax[0].set_title('Original Image')
-    ax[1].set_title('Mine Output')
-    ax[2].set_title('CV2 Output')
+    plt.suptitle("\nImage Warping", size=18)
+    ax[0].set_title('Image 1')
+    ax[1].set_title('Image 2')
+    ax[2].set_title('Result Output')
     ax[0].imshow(img1, cmap='gray')
-    ax[1].imshow(mine_warping_res, cmap='gray')
-    ax[2].imshow(cv2_warping_res, cmap='gray')
+    ax[1].imshow(img2, cmap='gray')
+    ax[2].imshow(result, cmap='gray')
     plt.show()
 
 
